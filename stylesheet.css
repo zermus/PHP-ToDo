@@ -1,0 +1,235 @@
+/* General Styles */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #121212;
+    color: #c0c0c0;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center; /* Center content horizontally */
+    align-items: center; /* Center content vertically */
+    min-height: 100vh; /* Ensure full viewport height */
+    flex-direction: column; /* Stack child elements vertically */
+    overflow-y: auto; /* Enable vertical scrolling when necessary */
+}
+
+.container {
+    background-color: #222831;
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 600px;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    color: #00ddff;
+    margin: auto; /* Center the container horizontally */
+}
+
+/* Input Styles */
+input[type="text"], input[type="email"], input[type="password"], select {
+    width: 90%;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: 1px solid #00ddff;
+    background-color: #333;
+    color: #ffffff;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Button Styles */
+button, .btn, .new-task, .manage-users, .edit-link {
+    background-color: #4CAF50;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: inline-block;
+    text-decoration: none;
+    margin: 5px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover {
+    background-color: #367c39;
+}
+
+/* Message Styles */
+.message, .password-requirements {
+    margin-top: 20px;
+    color: #FF6347;
+    font-size: 0.9em;
+}
+
+.success {
+    color: #00FF00;
+}
+
+/* Task Urgency */
+.task-item-green {
+    background-color: #1CD221;
+    color: #FFFFFF;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.task-today {
+    background-color: #FCB300;
+    color: #404040;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.task-soon {
+    background-color: #EE5606;
+    color: #404040;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.task-past-due {
+    background-color: #FF0000;
+    color: #FFFFFF;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+/* Completed Tasks and Checklist Items */
+.completed {
+    text-decoration: line-through;
+}
+
+/* Task List Container sizing */
+.task-container .task-list {
+    padding: 20px;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+    border-radius: 8px;
+}
+
+/* Manage Users styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    border: 1px solid #00ddff;
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background-color: #333;
+}
+
+tr:nth-child(even) {
+    background-color: #222831;
+}
+
+/* Calendar Container */
+.calendar-container {
+    background-color: #222831;
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 800px;
+    margin: 20px auto;
+    box-sizing: border-box;
+    text-align: center;
+    color: #00ddff;
+}
+
+/* Calendar Styles */
+.calendar {
+    margin-top: 20px;
+    width: 100%;
+}
+
+.calendar table {
+    width: 100%;
+    table-layout: fixed; /* Ensures even distribution of column widths */
+}
+
+.calendar th,
+.calendar td {
+    position: relative; /* Added for positioning of the date */
+    padding: 10px;
+    text-align: left; /* Align content to the left */
+    vertical-align: top; /* Align content to the top */
+    overflow-y: auto; /* Allow scrolling for overflow content */
+    min-height: 100px; /* Minimum height for each day cell */
+    border: 1px solid #222831; /* Border for each day cell for better visual separation */
+}
+
+.calendar th {
+    background-color: #222831;
+    color: #ffffff;
+}
+
+.calendar td {
+    background-color: #333;
+    color: #ffffff;
+    border: 1px solid #222831;
+    height: auto; /* Adjust cell height as needed */
+}
+
+.calendar .date-box {
+    min-height: 90px; /* Minimum height for the content area of each day cell */
+    display: flex;
+    flex-direction: column; /* Stack content vertically */
+}
+
+.calendar .date {
+    position: absolute; /* Position the date number absolutely within the cell */
+    top: 5px; /* Position at the top */
+    left: 5px; /* Position at the left */
+    background-color: rgba(255, 255, 255, 0.2); /* Slight background for visibility */
+    padding: 2px 4px; /* Padding around the date number */
+    border-radius: 3px; /* Rounded corners for the date background */
+    font-weight: bold; /* Bold font for the date number */
+    margin-bottom: 10px; /* Space between the date number and first task */
+}
+
+.calendar .task {
+    padding: 5px;
+    margin-top: 20px; /* Space from the top for the date number */
+    border-radius: 3px;
+}
+
+/* Calendar Navigation Styles */
+.calendar-navigation-btn {
+    background-color: #008CBA;
+    color: #ffffff;
+    padding: 10px 15px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+.calendar-navigation-btn:hover {
+    background-color: #005f73;
+}
+
+/* Adjustments for responsive design */
+@media (max-height: 800px) {
+    .calendar-container {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .calendar td {
+        height: 80px; /* Adjust for smaller screens */
+    }
+}
