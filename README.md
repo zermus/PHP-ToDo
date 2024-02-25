@@ -1,1 +1,48 @@
-# PHP-ToDo
+# PHP To-Do Application
+
+## Installation Instructions
+
+### Prerequisites
+- Web server (e.g., Apache, Nginx)
+- PHP (version 7.0 or higher)
+- MySQL or MariaDB
+
+### Installation Steps
+
+1. **Download and Extract Files**:
+    - Download the application files.
+    - Extract the files to your desired installation directory. Ensure that this directory is accessible by your web server.
+
+2. **Populate Configuration File**:
+    - Navigate to the installation directory and locate the `config.php` file.
+    - Open `config.php` in a text editor.
+    - Populate the file with the necessary information such as database credentials, base URL, and other configurations required for the application to function properly.
+    - Save and close the `config.php` file after making the necessary changes.
+
+3. **Run Installation Script**:
+    - Open your web browser and navigate to `http://yourwebsite.com/your-PHP-ToDo-URL/install.php`.
+    - Fill out the required information in the installation form.
+    - Click on the "Install" button to start the installation process.
+
+4. **Follow Post-Installation Steps**:
+    - After successful installation, follow the post-installation steps provided on the installation page.
+    - These steps may include:
+        - Verifying your email address by clicking on the verification link sent to your email.
+        - Deleting the `install.php` file from your server for security purposes.
+        - Setting up a cron job to run `send_reminders.php` at regular intervals (if required).
+
+## Additional Information
+
+- **Permissions**:
+    - Ensure that the files and directories have the appropriate permissions to be accessed by the web server. Typically, files should be set to `-rw-r--r--` and directories to
+ `drwxr-xr-x`.
+
+- **Troubleshooting**:
+    - If you encounter any issues during installation or while using the application, refer to the troubleshooting section in the documentation or seek assistance from the deve
+loper community.
+
+- **Support**:
+    - For any questions or feedback please contact the developer at cgee [at] cgee [dot] net.
+
+- **License**:
+    - This application is released under the [MIT License](LICENSE), which means you are free to use, modify, and distribute the software as per the terms of the license.
