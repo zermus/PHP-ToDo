@@ -20,7 +20,7 @@ try {
 
     // Fetch Tasks for Current Month
     $currentMonth = isset($_GET['month']) ? $_GET['month'] : date('m');
-    $currentYear = date('Y');
+    $currentYear = isset($_GET['year']) ? $_GET['year'] : date('Y'); // New
     $firstDayOfMonth = new DateTime("$currentYear-$currentMonth-01", $userTimezone);
     $firstDayOfMonth->modify('first day of this month');
 
@@ -45,8 +45,11 @@ try {
     die("Error: " . $e->getMessage());
 }
 
+// Calculate previous and next months
 $previousMonth = date('m', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01")));
+$previousYear = date('Y', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01"))); // New
 $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01")));
+$nextYear = date('Y', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01"))); // New
 
 ?>
 <!DOCTYPE html>
@@ -61,9 +64,10 @@ $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMon
     <div class="calendar-container">
         <h1>Calendar</h1>
         <div class="month-navigation">
-            <button onclick="location.href='?month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn prev-month">Previous</button>
+            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn prev-month">Previo
+us</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
-            <button onclick="location.href='?month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
+            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
         </div>
         <div class="calendar">
             <table>
