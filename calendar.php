@@ -23,8 +23,15 @@ try {
     $currentYear = date('Y');
     $firstDayOfMonth = new DateTime("$currentYear-$currentMonth-01", $userTimezone);
     $firstDayOfMonth->modify('first day of this month');
-    $startDayOfWeek = clone $firstDayOfMonth;
-    $startDayOfWeek->modify('last sunday');
+
+    $dayOfWeek = $firstDayOfMonth->format('w'); // Numeric representation of the day of the week
+    if ($dayOfWeek == 0) { // If the first day of the month is a Sunday
+        $startDayOfWeek = clone $firstDayOfMonth;
+    } else {
+        $startDayOfWeek = clone $firstDayOfMonth;
+        $startDayOfWeek->modify('last sunday');
+    }
+
     $lastDayOfMonth = clone $firstDayOfMonth;
     $lastDayOfMonth->modify('last day of this month');
     $endDayOfWeek = clone $lastDayOfMonth;
@@ -38,11 +45,9 @@ try {
     die("Error: " . $e->getMessage());
 }
 
-// Implement Navigation Logic
 $previousMonth = date('m', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01")));
 $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01")));
 
-// HTML Structure for Calendar Page
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -55,13 +60,11 @@ $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMon
 <body>
     <div class="calendar-container">
         <h1>Calendar</h1>
-        <!-- Month Navigation Buttons -->
         <div class="month-navigation">
             <button onclick="location.href='?month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn prev-month">Previous</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
             <button onclick="location.href='?month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
         </div>
-        <!-- Calendar Display -->
         <div class="calendar">
             <table>
                 <thead>
@@ -77,18 +80,18 @@ $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMon
                 </thead>
                 <tbody>
                     <?php
-                    // Loop through weeks
                     $currentDate = clone $startDayOfWeek;
                     while ($currentDate <= $endDayOfWeek) {
+                        // Check to avoid unnecessary row at the end
+                        if ($currentDate > $lastDayOfMonth && $currentDate->format('w') == 0) {
+                            break;
+                        }
                         echo "<tr>";
-                        // Loop through days of the week
                         for ($i = 0; $i < 7; $i++) {
                             echo "<td>";
-                            // Display the day number
                             echo "<div class='date-box'>";
                             if ($currentDate >= $firstDayOfMonth && $currentDate <= $lastDayOfMonth) {
                                 echo "<div class='date'>" . $currentDate->format('j') . "</div>";
-                                // Display tasks for the current date
                                 foreach ($tasks as $task) {
                                     $dueDate = new DateTime($task['due_date'], new DateTimeZone('UTC'));
                                     $dueDate->setTimezone($userTimezone);
@@ -104,7 +107,8 @@ $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMon
                                             $taskClass = 'task-today';
                                         }
                                         $taskStyle = $task['completed'] ? 'completed' : '';
-                                        echo "<div class='task $taskClass $taskStyle'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchars($task['summary']) . "</a></div>";
+                                        echo "<div class='task $taskClass $taskStyle'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchar
+s($task['summary']) . "</a></div>";
                                     }
                                 }
                             }
@@ -118,7 +122,7 @@ $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMon
                 </tbody>
             </table>
         </div>
-        <a href="main.php" class="btn">Tasks</a> <!-- Link to go back to main.php -->
+        <a href="main.php" class="btn">Tasks</a>
     </div>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
