@@ -37,18 +37,14 @@
     - Ensure that the files and directories have the appropriate permissions to be accessed by the web server. Typically, files should be set to `-rw-r--r--` and directories to
  `drwxr-xr-x`.
 
-- **Troubleshooting**:
-    - If you encounter any issues during installation or while using the application, refer to the troubleshooting section in the documentation or seek assistance from the deve
-loper community.
-
 - **Official Website**:
     - https://cgee.net/php-todo/
 
-- **Feedback**:
-    - For any questions or feedback please contact the developer at cgee [at] cgee [dot] net.
-
 - **Download**:
     - https://cgee.net/php-todo/php-todo-0.76.tar.gz
+
+- **Feedback**:
+    - For any questions or feedback please contact the developer at cgee [at] cgee [dot] net.
 
 - **License**:
     - This application is released under the [MIT License](LICENSE), which means you are free to use, modify, and distribute the software as per the terms of the license.
