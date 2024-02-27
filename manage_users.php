@@ -104,7 +104,7 @@ try {
     <link rel="stylesheet" href="stylesheet.css">
 </head>
 <body>
-    <div class="container">
+    <div class="container manage-users-container">
         <h1>Manage Users</h1>
         <div class="user-list">
             <table>
