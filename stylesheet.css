@@ -110,6 +110,12 @@ button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover
     border-radius: 5px;
 }
 
+/* Other styles */
+
+.manage-users-container {
+    max-width: 900px; /* Adjust this value as needed */
+}
+
 /* Completed Tasks and Checklist Items */
 .completed {
     text-decoration: line-through;
