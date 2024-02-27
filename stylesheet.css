@@ -101,6 +101,15 @@ button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover
     border-radius: 5px;
 }
 
+.task-completed {
+    text-decoration: line-through;
+    background-color: #666699;
+    color: #FFFFFF;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
 /* Completed Tasks and Checklist Items */
 .completed {
     text-decoration: line-through;
