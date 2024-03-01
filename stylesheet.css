@@ -248,3 +248,10 @@ tr:nth-child(even) {
         height: 80px; /* Adjust for smaller screens */
     }
 }
+
+/* Registration Closed */
+.registration-closed {
+    color: red; /* Or any color you prefer */
+    font-size: 1.2em;
+    margin-top: 20px;
+}
