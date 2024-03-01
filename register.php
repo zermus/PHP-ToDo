@@ -1,21 +1,35 @@
 <?php
 session_start();
 
+require 'config.php';
+
 // Redirect to main.php if already logged in
 if (isset($_SESSION['user_id']) || isset($_COOKIE['rememberMe'])) {
     header('Location: main.php');
     exit();
 }
 
-require 'config.php';
+// Initialize PDO object if not already initialized
+if (!isset($pdo) || !($pdo instanceof PDO)) {
+    try {
+        $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    } catch (PDOException $e) {
+        die("Database connection error: " . $e->getMessage());
+    }
+}
 
 $message = '';
 $successMessage = ''; // Initialize success message variable
 
-if (isset($_POST['register'])) {
+// Check the user registration setting
+$settingsStmt = $pdo->prepare("SELECT value FROM settings WHERE name = 'user_registration'");
+$settingsStmt->execute();
+$registrationEnabled = $settingsStmt->fetchColumn() === '1';
+
+if (isset($_POST['register']) && $registrationEnabled) {
     // Honeypot field check
     if (!empty($_POST['faxNumber'])) {
-        // Looks like a bot filled out the form, so don't process
         exit('No bots allowed!');
     }
 
@@ -24,32 +38,29 @@ if (isset($_POST['register'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'];
     $verifyPassword = $_POST['verifyPassword'];
-    $timezone = $_POST['timezone']; // Get the selected timezone
+    $timezone = $_POST['timezone'];
 
     if ($password !== $verifyPassword) {
         $message = "The passwords do not match. Please try again.";
     } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/", $password)) {
-        $message = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.";
+        $message = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one
+special character.";
     } else {
         try {
-            $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-            // Check if username or email already exists
             $userCheckStmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
             $userCheckStmt->execute([$username, $email]);
             if ($userCheckStmt->fetch()) {
                 $message = "Username or Email already exists.";
             } else {
-                // Insert the new user into the users table
                 $verificationToken = bin2hex(random_bytes(16));
-                $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'user', ?, ?)");
+                $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'u
+ser', ?, ?)");
                 $stmt->execute([$name, $username, $email, password_hash($password, PASSWORD_DEFAULT), $verificationToken, $timezone]);
 
-                // Send the verification email
                 $verificationLink = $base_url . "verify.php?token=" . $verificationToken;
                 $subject = "Verify Your Email";
-                $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:\n$verificationLink\n\nThank you!";
+                $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:\n$verificationLink\n
+\nThank you!";
                 $headers = "From: " . $from_email;
 
                 if (mail($email, $subject, $emailMessage, $headers)) {
@@ -78,10 +89,9 @@ if (isset($_POST['register'])) {
         var password = document.getElementById('password');
         var verifyPassword = document.getElementById('verifyPassword');
         var message = document.getElementById('passwordMessage');
-        var successMessage = "<?php echo $successMessage; ?>"; // Get the PHP successMessage
+        var successMessage = "<?php echo $successMessage; ?>";
 
         function validatePassword() {
-            // If there's a success message, don't validate the passwords to clear the message
             if (successMessage !== "") {
                 message.innerHTML = '';
                 return;
@@ -131,38 +141,42 @@ if (isset($_POST['register'])) {
 <body>
     <div class="container">
         <h2>To Do Register</h2>
-        <form method="post">
-            <!-- Honeypot field, hidden from users -->
-            <div style="display:none;">
-                <input type="text" name="faxNumber" id="faxNumber" placeholder="Leave this field empty">
-            </div>
-            <input type="text" name="name" placeholder="Name" required>
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="email" name="email" placeholder="Email" required>
-            <select name="timezone" required>
-                <option value="" disabled selected>Select Timezone</option>
-                <!-- Timezone options -->
-                <option value="America/New_York">Eastern Time (US & Canada)</option>
-                <option value="America/Chicago">Central Time (US & Canada)</option>
-                <option value="America/Denver">Mountain Time (US & Canada)</option>
-                <option value="America/Los_Angeles">Pacific Time (US & Canada)</option>
-                <option value="America/Anchorage">Alaska</option>
-                <option value="America/Halifax">Atlantic Time (Canada)</option>
-                <option value="America/Buenos_Aires">Buenos Aires</option>
-                <option value="America/Sao_Paulo">Sao Paulo</option>
-                <option value="America/Lima">Lima</option>
-                <option value="Pacific/Honolulu">Hawaii</option>
-                <option value="Europe/London">London</option>
-                <option value="Europe/Berlin">Berlin, Frankfurt, Paris, Rome, Madrid</option>
-                <option value="Europe/Athens">Athens, Istanbul, Minsk</option>
-                <option value="Europe/Moscow">Moscow, St. Petersburg, Volgograd</option>
-                <!-- Add more timezones as needed -->
-            </select>
-            <input type="password" id="password" name="password" placeholder="Password" required>
-            <input type="password" id="verifyPassword" name="verifyPassword" placeholder="Verify Password" required>
-            <div id="passwordMessage" class="message">Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.</div>
-            <button type="submit" name="register">Register</button>
-        </form>
+        <?php if ($registrationEnabled): ?>
+            <form method="post">
+                <div style="display:none;">
+                    <input type="text" name="faxNumber" id="faxNumber" placeholder="Leave this field empty">
+                </div>
+                <input type="text" name="name" placeholder="Name" required>
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="email" name="email" placeholder="Email" required>
+                <select name="timezone" required>
+                    <!-- Timezone options -->
+                    <option value="" disabled selected>Select Timezone</option>
+                    <option value="America/New_York">Eastern Time (US & Canada)</option>
+                    <option value="America/Chicago">Central Time (US & Canada)</option>
+                    <option value="America/Denver">Mountain Time (US & Canada)</option>
+                    <option value="America/Los_Angeles">Pacific Time (US & Canada)</option>
+                    <option value="America/Anchorage">Alaska</option>
+                    <option value="America/Halifax">Atlantic Time (Canada)</option>
+                    <option value="America/Buenos_Aires">Buenos Aires</option>
+                    <option value="America/Sao_Paulo">Sao Paulo</option>
+                    <option value="America/Lima">Lima</option>
+                    <option value="Pacific/Honolulu">Hawaii</option>
+                    <option value="Europe/London">London</option>
+                    <option value="Europe/Berlin">Berlin, Frankfurt, Paris, Rome, Madrid</option>
+                    <option value="Europe/Athens">Athens, Istanbul, Minsk</option>
+                    <option value="Europe/Moscow">Moscow, St. Petersburg, Volgograd</option>
+                    <!-- Add more timezones as needed -->
+                </select>
+                <input type="password" id="password" name="password" placeholder="Password" required>
+                <input type="password" id="verifyPassword" name="verifyPassword" placeholder="Verify Password" required>
+                <div id="passwordMessage" class="message">Password requirements message</div>
+                <button type="submit" name="register">Register</button>
+            </form>
+        <?php else: ?>
+            <p class="message error">User Registration is closed at this time.</p>
+        <?php endif; ?>
+
         <?php if ($message): ?>
             <div class="message error">
                 <?php echo $message; ?>
@@ -173,6 +187,10 @@ if (isset($_POST['register'])) {
                 <?php echo $successMessage; ?>
             </div>
         <?php endif; ?>
+        <!-- Back button -->
+        <div style="margin-top: 20px;">
+            <a href="login.php" class="btn">Back to Login</a>
+        </div>
     </div>
 </body>
 </html>
