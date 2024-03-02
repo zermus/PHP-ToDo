@@ -13,6 +13,11 @@ try {
 
     $errorMessage = '';
 
+    // Fetch groups the user is part of
+    $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
+    $groupStmt->execute([$_SESSION['user_id']]);
+    $groups = $groupStmt->fetchAll();
+
     $userTimezoneQuery = $pdo->prepare("SELECT timezone FROM users WHERE id = ?");
     $userTimezoneQuery->execute([$_SESSION['user_id']]);
     $userTimezoneResult = $userTimezoneQuery->fetch();
@@ -67,6 +72,7 @@ try {
         $isChecklist = isset($_POST['isChecklist']) ? 1 : 0;
         $checklistItems = isset($_POST['checklist']) ? $_POST['checklist'] : [];
         $completed = isset($_POST['completed']) ? 1 : 0;
+        $groupId = !empty($_POST['group_id']) ? $_POST['group_id'] : null;
 
         $validReminderPreferences = ['15m', '30m', '1h', '2h', '4h', '12h', '24h'];
         if (!in_array($reminderPreference, $validReminderPreferences)) {
@@ -76,8 +82,8 @@ try {
         $dueDateTime = new DateTime($dueDate . ' ' . $dueTime, $userTimezone);
         $dueDateTime->setTimezone(new DateTimeZone('UTC'));
 
-        $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, due_date = ?, reminder_preference = ?, completed = ?, details = ? WHERE id = ?");
-        $updateStmt->execute([$taskName, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDetails, $taskId]);
+        $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?, completed = ?, details = ? WHERE id = ?");
+        $updateStmt->execute([$taskName, $groupId, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDetails, $taskId]);
 
         $deleteStmt = $pdo->prepare("DELETE FROM checklist_items WHERE task_id = ?");
         $deleteStmt->execute([$taskId]);
@@ -146,14 +152,26 @@ try {
             <div class="form-group">
                 <label for="reminderPreference">Reminder Preference:</label>
                 <select id="reminderPreference" name="reminderPreference">
-                    <option value="" <?php echo $reminderPreference === '' ? 'selected' : ''; ?>>None</option>
-                    <?php
-                    foreach ($validReminderPreferences as $option) {
-                        echo "<option value=\"$option\"" . ($reminderPreference === $option ? ' selected' : '') . ">" . htmlspecialchars($option) . "</option>";
-                    }
-                    ?>
+                    <option value="">None</option>
+                    <?php foreach ($validReminderPreferences as $option): ?>
+                        <option value="<?php echo $option; ?>" <?php echo ($reminderPreference === $option ? 'selected' : ''); ?>><?php echo htmlspecialchars($option); ?
+></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
+
+            <?php if (!empty($groups)): ?>
+            <div class="form-group">
+                <label for="group_id">Assign to Group:</label>
+                <select id="group_id" name="group_id">
+                    <option value="">None</option>
+                    <?php foreach ($groups as $group): ?>
+                        <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>><?php echo htmlspecialchars($gro
+up['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
 
             <div class="form-group">
                 <input type="checkbox" id="completed" name="completed" <?php echo $task['completed'] ? 'checked' : ''; ?>>
@@ -162,11 +180,11 @@ try {
 
             <button type="submit" class="btn">Update Task</button>
             <button type="button" class="btn" onclick="window.location.href='main.php'">Cancel</button>
-
-            <?php if ($errorMessage): ?>
-                <div class="error-message"><?php echo $errorMessage; ?></div>
-            <?php endif; ?>
         </form>
+
+        <?php if ($errorMessage): ?>
+            <div class="error-message"><?php echo $errorMessage; ?></div>
+        <?php endif; ?>
     </div>
 
     <script>
