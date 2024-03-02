@@ -14,11 +14,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         $itemId = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
-	$isCompleted = isset($_POST['is_completed']) ? (int)boolval($_POST['is_completed']) : 0;
+        $isCompleted = isset($_POST['is_completed']) ? (int)boolval($_POST['is_completed']) : 0;
 
-        // Verify that the checklist item exists and belongs to a task of the logged-in user
-        $verifyStmt = $pdo->prepare("SELECT ci.id FROM checklist_items ci JOIN tasks t ON ci.task_id = t.id WHERE ci.id = ? AND t.user_id = ?");
-        $verifyStmt->execute([$itemId, $_SESSION['user_id']]);
+        // Verify that the checklist item exists and belongs to a task of the logged-in user or their group
+        $verifyStmt = $pdo->prepare("
+            SELECT ci.id
+            FROM checklist_items ci
+            JOIN tasks t ON ci.task_id = t.id
+            LEFT JOIN group_memberships gm ON t.group_id = gm.group_id
+            WHERE ci.id = ? AND (t.user_id = ? OR (gm.user_id = ? AND gm.group_id = t.group_id))
+        ");
+        $verifyStmt->execute([$itemId, $_SESSION['user_id'], $_SESSION['user_id']]);
         if ($verifyStmt->rowCount() == 0) {
             throw new Exception("Invalid item ID or access denied.");
         }
