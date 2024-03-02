@@ -18,40 +18,50 @@ try {
     $userDetails = $userStmt->fetch();
     $userTimezone = new DateTimeZone($userDetails['timezone'] ?? 'UTC');
 
-    // Fetch Tasks for Current Month
+    // Fetch Tasks for Current Month for both individual and group tasks
     $currentMonth = isset($_GET['month']) ? $_GET['month'] : date('m');
-    $currentYear = isset($_GET['year']) ? $_GET['year'] : date('Y'); // Adjusted to account for year changes
+    $currentYear = isset($_GET['year']) ? $_GET['year'] : date('Y');
     $firstDayOfMonth = new DateTime("$currentYear-$currentMonth-01", $userTimezone);
     $firstDayOfMonth->modify('first day of this month');
-
-    $dayOfWeek = $firstDayOfMonth->format('w'); // Numeric representation of the day of the week
-    if ($dayOfWeek == 0) { // If the first day of the month is a Sunday
-        $startDayOfWeek = clone $firstDayOfMonth;
-    } else {
-        $startDayOfWeek = clone $firstDayOfMonth;
-        $startDayOfWeek->modify('last sunday');
+    $dayOfWeek = $firstDayOfMonth->format('w');
+    $startDayOfWeek = clone $firstDayOfMonth;
+    if ($dayOfWeek != 0) { // Adjust if the first day is not Sunday
+        $startDayOfWeek->modify('-' . $dayOfWeek . ' days');
     }
-
     $lastDayOfMonth = clone $firstDayOfMonth;
     $lastDayOfMonth->modify('last day of this month');
     $endDayOfWeek = clone $lastDayOfMonth;
-    $endDayOfWeek->modify('next saturday');
+    if ($lastDayOfMonth->format('w') != 6) { // Adjust if the last day is not Saturday
+        $endDayOfWeek->modify('+'.(6 - $lastDayOfMonth->format('w')).' days');
+    }
 
-    $taskStmt = $pdo->prepare("SELECT * FROM tasks WHERE user_id = ? AND due_date >= ? AND due_date <= ?");
-    $taskStmt->execute([$_SESSION['user_id'], $startDayOfWeek->format('Y-m-d'), $endDayOfWeek->format('Y-m-d')]);
+    // Adjust the query to include tasks shared with groups
+    $taskStmt = $pdo->prepare("
+        SELECT t.* FROM tasks t
+        LEFT JOIN group_memberships gm ON t.group_id = gm.group_id
+        WHERE (t.user_id = ? OR gm.user_id = ?) AND t.due_date BETWEEN ? AND ?
+        GROUP BY t.id
+        ORDER BY t.due_date ASC
+    ");
+    $taskStmt->execute([
+        $_SESSION['user_id'],
+        $_SESSION['user_id'],
+        $startDayOfWeek->format('Y-m-d'),
+        $endDayOfWeek->format('Y-m-d')
+    ]);
     $tasks = $taskStmt->fetchAll();
+
+    // Calculate previous and next months and years
+    $previousMonth = date('m', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01")));
+    $previousYear = date('Y', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01")));
+    $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01")));
+    $nextYear = date('Y', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01")));
 
 } catch (PDOException $e) {
     die("Error: " . $e->getMessage());
 }
-
-// Calculate previous and next months and years
-$previousMonth = date('m', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01")));
-$previousYear = date('Y', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01"))); // Adjusted
-$nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01")));
-$nextYear = date('Y', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01"))); // Adjusted
-
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -64,8 +74,8 @@ $nextYear = date('Y', strtotime('+1 month', strtotime("$currentYear-$currentMont
     <div class="calendar-container">
         <h1>Calendar</h1>
         <div class="month-navigation">
-            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-month">Pr
-evious</button>
+            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-month">P
+revious</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
             <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
         </div>
@@ -110,8 +120,8 @@ evious</button>
                                         } elseif ($interval->days == 0) {
                                             $taskClass = 'task-today';
                                         }
-                                        echo "<div class='task $taskClass'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchars($task['su
-mmary']) . "</a></div>";
+                                        echo "<div class='task $taskClass'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchars($task['s
+ummary']) . "</a></div>";
                                     }
                                 }
                             }
