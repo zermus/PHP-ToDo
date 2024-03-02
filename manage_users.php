@@ -20,23 +20,19 @@ $timezones = [
     "Europe/Moscow" => "Moscow, St. Petersburg, Volgograd",
 ];
 
-// Redirect to login if not authenticated
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
 }
 
-// Database connection
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Retrieve the registration setting at the beginning
     $settingsStmt = $pdo->prepare("SELECT value FROM settings WHERE name = 'user_registration'");
     $settingsStmt->execute();
     $registrationEnabled = $settingsStmt->fetchColumn() === '1';
 
-    // Check if the user is an admin or super admin
     $userStmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
     $userStmt->execute([$_SESSION['user_id']]);
     $userRole = $userStmt->fetchColumn();
@@ -46,63 +42,103 @@ try {
         exit();
     }
 
-    // Fetch all users with the 'is_super_admin' flag and their timezone
-    $usersStmt = $pdo->prepare("SELECT id, name, username, role, timezone, (role = 'super_admin') as is_super_admin FROM users");
+    $usersStmt = $pdo->prepare("SELECT id, name, username, role, timezone FROM users");
     $usersStmt->execute();
     $users = $usersStmt->fetchAll();
 
-    // Handle POST requests for role changes, user deletion, or timezone updates
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-        if ($_POST['action'] === 'toggle_registration') {
-            $newStatus = isset($_POST['registration_status']) ? '1' : '0';
-            $updateStmt = $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'");
-            $updateStmt->execute([$newStatus]);
-            header('Location: manage_users.php');
-            exit();
-        }
+    $isSuperAdmin = $userRole === 'super_admin';
 
-        $userId = $_POST['user_id'] ?? null;
-        if ($userId) {
-            // Fetch the role of the user to be affected
-            $roleStmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-            $roleStmt->execute([$userId]);
-            $role = $roleStmt->fetchColumn();
+    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admi
+n')";
+    $groupsStmt = $pdo->prepare("SELECT id, name FROM user_groups $exclusionQuery");
+    $groupsStmt->execute();
+    $groups = $groupsStmt->fetchAll();
 
-            // Prevent action if the user is a super admin
-            if ($role === 'super_admin') {
-                echo "Action not allowed on super admin account.";
-                exit();
-            }
+    // Define membershipQuery here
+    $membershipQuery = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
 
-            if ($_POST['action'] === 'make_admin') {
-                // Update user role to admin
-                $updateStmt = $pdo->prepare("UPDATE users SET role = 'admin' WHERE id = ?");
-                $updateStmt->execute([$userId]);
-            } elseif ($_POST['action'] === 'demote_user') {
-                // Update user role to user
-                $updateStmt = $pdo->prepare("UPDATE users SET role = 'user' WHERE id = ?");
-                $updateStmt->execute([$userId]);
-            } elseif ($_POST['action'] === 'delete_user') {
-                // Delete user from the database
-                $deleteStmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-                $deleteStmt->execute([$userId]);
-            } elseif ($_POST['action'] === 'update_timezone') {
-                // Update user timezone
-                $newTimezone = $_POST['timezone'];
-                if (array_key_exists($newTimezone, $timezones)) {
-                    $updateTimezoneStmt = $pdo->prepare("UPDATE users SET timezone = ? WHERE id = ?");
-                    $updateTimezoneStmt->execute([$newTimezone, $userId]);
-                }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST['action'])) {
+            switch ($_POST['action']) {
+                case 'toggle_registration':
+                    $newStatus = isset($_POST['registration_status']) ? '1' : '0';
+                    $updateStmt = $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'");
+                    $updateStmt->execute([$newStatus]);
+                    break;
+                case 'make_admin':
+                case 'demote_user':
+                case 'delete_user':
+                case 'update_timezone':
+                    handleUserActions($pdo, $_POST);
+                    break;
+                case 'remove_from_group':
+                    if (isset($_POST['user_id'], $_POST['group_id']) && ($isSuperAdmin || !groupHasSuperAdmin($pdo, $_POST['group_id']))) {
+                        $removeStmt = $pdo->prepare("DELETE FROM group_memberships WHERE user_id = ? AND group_id = ?");
+                        $removeStmt->execute([$_POST['user_id'], $_POST['group_id']]);
+                    }
+                    break;
             }
         }
-
-        // Redirect to prevent form resubmission
+        handleGroupActions($pdo, $_POST);
         header('Location: manage_users.php');
         exit();
     }
-
 } catch (PDOException $e) {
     die("Database error: " . $e->getMessage());
+}
+
+function handleUserActions($pdo, $postData) {
+    $userId = $postData['user_id'] ?? null;
+    if (!$userId) return;
+
+    // Prevent admin from changing super admin's timezone
+    if ($GLOBALS['userRole'] == 'admin') {
+        $roleCheckStmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+        $roleCheckStmt->execute([$userId]);
+        if ($roleCheckStmt->fetchColumn() == 'super_admin') {
+            return;
+        }
+    }
+
+    switch ($postData['action']) {
+        case 'make_admin':
+            $pdo->prepare("UPDATE users SET role = 'admin' WHERE id = ?")->execute([$userId]);
+            break;
+        case 'demote_user':
+            $pdo->prepare("UPDATE users SET role = 'user' WHERE id = ?")->execute([$userId]);
+            break;
+        case 'delete_user':
+            $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
+            break;
+        case 'update_timezone':
+            $newTimezone = $postData['timezone'];
+            if (array_key_exists($newTimezone, $GLOBALS['timezones'])) {
+                $pdo->prepare("UPDATE users SET timezone = ? WHERE id = ?")->execute([$newTimezone, $userId]);
+            }
+            break;
+    }
+}
+
+function handleGroupActions($pdo, $postData) {
+    if (isset($postData['create_group'])) {
+        $groupName = filter_input(INPUT_POST, 'group_name', FILTER_SANITIZE_STRING);
+        if (!empty($groupName)) {
+            $pdo->prepare("INSERT INTO user_groups (name) VALUES (?)")->execute([$groupName]);
+        }
+    }
+    if (isset($postData['assign_user'])) {
+        $userId = $postData['user_id'];
+        $groupId = $postData['group_id'];
+        if (!empty($userId) && !empty($groupId)) {
+            $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?)")->execute([$userId, $groupId]);
+        }
+    }
+}
+
+function groupHasSuperAdmin($pdo, $groupId) {
+    $query = $pdo->prepare("SELECT COUNT(*) FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin' AND gm.group_id = ?");
+    $query->execute([$groupId]);
+    return $query->fetchColumn() > 0;
 }
 ?>
 
@@ -117,12 +153,35 @@ try {
 <body>
     <div class="container manage-users-container">
         <h1>Manage Users</h1>
-        <!-- User Registration Toggle Form -->
         <form action="manage_users.php" method="post">
             User Registration:
             <input type="hidden" name="action" value="toggle_registration">
-            <input type="checkbox" name="registration_status" <?php echo ($registrationEnabled ? 'checked' : ''); ?> onchange="this.form.submit()">
+            <input type="checkbox" name="registration_status" <?php echo $registrationEnabled ? 'checked' : ''; ?> onchange="this.form.submit()">
         </form>
+
+        <form action="manage_users.php" method="post">
+            <input type="text" name="group_name" placeholder="Group Name" required>
+            <input type="hidden" name="create_group" value="1">
+            <button type="submit" class="btn">Create Group</button>
+        </form>
+
+        <form action="manage_users.php" method="post">
+            <select name="user_id" required>
+                <option value="">Select User</option>
+                <?php foreach ($users as $user): ?>
+                    <option value="<?php echo $user['id']; ?>"><?php echo htmlspecialchars($user['name']); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select name="group_id" required>
+                <option value="">Select Group</option>
+                <?php foreach ($groups as $group): ?>
+                    <option value="<?php echo $group['id']; ?>"><?php echo htmlspecialchars($group['name']); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <input type="hidden" name="assign_user" value="1">
+            <button type="submit" class="btn">Assign to Group</button>
+        </form>
+
         <div class="user-list">
             <table>
                 <thead>
@@ -131,59 +190,84 @@ try {
                         <th>Username</th>
                         <th>Role</th>
                         <th>Timezone</th>
+                        <th>Group</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($users as $user): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($user['username']); ?></td>
-                    <td><?php echo htmlspecialchars($user['name']); ?></td>
-                    <td><?php echo htmlspecialchars($user['role']); ?></td>
-                    <td>
-                        <form action="manage_users.php" method="post">
-                            <select name="timezone">
-                                <?php foreach ($timezones as $tz => $name): ?>
-                                <option value="<?php echo $tz; ?>" <?php if ($user['timezone'] == $tz) echo 'selected'; ?>>
-                                    <?php echo htmlspecialchars($name); ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <input type="hidden" name="action" value="update_timezone">
-                            <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                            <button type="submit" class="btn">Update Timezone</button>
-                        </form>
-                    </td>
-                    <td>
-                        <!-- Buttons for managing user roles and deletion, excluding super admin -->
-                        <?php if (!$user['is_super_admin']): ?>
-                            <?php if ($user['role'] === 'user'): ?>
+                    <?php foreach ($users as $user): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($user['name']); ?></td>
+                        <td><?php echo htmlspecialchars($user['username']); ?></td>
+                        <td><?php echo htmlspecialchars($user['role']); ?></td>
+                        <td>
+                            <?php if ($user['role'] !== 'super_admin' || $isSuperAdmin): ?>
+                            <form action="manage_users.php" method="post">
+                                <select name="timezone" <?php echo ($user['role'] === 'super_admin' && !$isSuperAdmin) ? 'disabled' : ''; ?>>
+                                    <?php foreach ($timezones as $tz => $name): ?>
+                                    <option value="<?php echo $tz; ?>" <?php if ($user['timezone'] == $tz) echo 'selected'; ?>>
+                                        <?php echo htmlspecialchars($name); ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <input type="hidden" name="action" value="update_timezone">
+                                <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                <?php if (!($user['role'] === 'super_admin' && !$isSuperAdmin)): ?>
+                                <button type="submit" class="btn">Update Timezone</button>
+                                <?php endif; ?>
+                            </form>
+                            <?php else: ?>
+                            <?php echo $user['timezone']; ?>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php
+                            $membershipQuery->execute([$user['id']]);
+                            $userGroups = $membershipQuery->fetchAll();
+                            foreach ($userGroups as $group) {
+                                echo htmlspecialchars($group['name']) . "<br>";
+                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role'] !== 'super_admin' && !groupHasSuperAd
+min($pdo, $group['id']))) {
+                                    echo "<form action='manage_users.php' method='post'>
+                                        <input type='hidden' name='action' value='remove_from_group'>
+                                        <input type='hidden' name='user_id' value='{$user['id']}'>
+                                        <input type='hidden' name='group_id' value='{$group['id']}'>
+                                        <button type='submit' class='btn'>Remove from {$group['name']}</button>
+                                    </form>";
+                                }
+                            }
+                            if (count($userGroups) === 0) echo 'None';
+                            ?>
+                        </td>
+                        <td>
+                            <?php if ($user['role'] != 'super_admin'): ?>
+                                <?php if ($user['role'] == 'admin'): ?>
+                                    <form action="manage_users.php" method="post">
+                                        <input type="hidden" name="action" value="demote_user">
+                                        <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                        <button type="submit" class="btn">Demote to User</button>
+                                    </form>
+                                <?php else: ?>
+                                    <form action="manage_users.php" method="post">
+                                        <input type="hidden" name="action" value="make_admin">
+                                        <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                        <button type="submit" class="btn">Make Admin</button>
+                                    </form>
+                                <?php endif; ?>
                                 <form action="manage_users.php" method="post">
-                                    <input type="hidden" name="action" value="make_admin">
+                                    <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                    <button type="submit" class="btn">Make Admin</button>
-                                </form>
-                            <?php elseif ($userRole === 'super_admin'): ?>
-                                <form action="manage_users.php" method="post">
-                                    <input type="hidden" name="action" value="demote_user">
-                                    <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                    <button type="submit" class="btn">Demote to User</button>
+                                    <button type="submit" class="btn">Delete</button>
                                 </form>
                             <?php endif; ?>
-                            <form action="manage_users.php" method="post">
-                                <input type="hidden" name="action" value="delete_user">
-                                <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                <button type="submit" class="btn">Delete</button>
-                            </form>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
-            <div class="button-container" style="margin-top: 20px;">
-                <a href="main.php" class="btn">Back</a>
-            </div>
+        </div>
+        <div class="button-container" style="margin-top: 20px;">
+            <a href="main.php" class="btn">Back</a>
         </div>
     </div>
 </body>
