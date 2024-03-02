@@ -8,7 +8,6 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Check if the user is logged in via session or "remember me" cookie
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
@@ -25,33 +24,49 @@ try {
     $userTimezone = new DateTimeZone($userDetails['timezone'] ?? 'UTC');
     $isAdmin = $userDetails['role'] === 'admin' || $userDetails['role'] === 'super_admin';
 
-    // Fetch Tasks with Checklist Items and sort them by due date
-    $tasksWithChecklist = [];
-    $taskStmt = $pdo->prepare("SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE ORDER BY due_date ASC");
-    $taskStmt->execute([$_SESSION['user_id']]);
-    $tasks = $taskStmt->fetchAll();
+    // Initialize an array to track task IDs assigned to groups
+    $groupTaskIds = [];
 
-    foreach ($tasks as $task) {
+    // Fetch group tasks
+    $groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_groups g O
+N gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
+    $groupTasksStmt->execute([$_SESSION['user_id']]);
+    $groupTasks = $groupTasksStmt->fetchAll();
+
+    $groupTasksWithChecklist = [];
+    foreach ($groupTasks as $task) {
+        $checklistStmt = $pdo->prepare("SELECT * FROM checklist_items WHERE task_id = ?");
+        $checklistStmt->execute([$task['id']]);
+        $checklistItems = $checklistStmt->fetchAll();
+        $task['checklist_items'] = $checklistItems;
+        $groupTasksWithChecklist[$task['group_name']][] = $task;
+        $groupTaskIds[] = $task['id']; // Add this task ID to the array
+    }
+
+    // Fetch personal tasks excluding those assigned to groups
+    $tasksWithChecklist = [];
+    $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?')); // Create placeholders for the query
+    $query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date ASC";
+    $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
+    $taskStmt = $pdo->prepare($query);
+    $taskStmt->execute($params);
+    $personalTasks = $taskStmt->fetchAll();
+
+    foreach ($personalTasks as $task) {
         $checklistStmt = $pdo->prepare("SELECT * FROM checklist_items WHERE task_id = ?");
         $checklistStmt->execute([$task['id']]);
         $checklistItems = $checklistStmt->fetchAll();
         $task['checklist_items'] = $checklistItems;
         $tasksWithChecklist[] = $task;
     }
-
 } catch (PDOException $e) {
     die("Error: " . $e->getMessage());
 }
 
-// Logout logic
 if (isset($_GET['logout'])) {
-    // Clear the session
     session_unset();
     session_destroy();
-
-    // Clear the rememberMe cookie
     setcookie('rememberMe', '', time() - 3600, '/');
-    // Redirect to login.php
     header('Location: login.php');
     exit();
 }
@@ -74,13 +89,16 @@ if (isset($_GET['logout'])) {
             <a href="manage_users.php" class="btn manage-users">Manage Users</a>
             <?php endif; ?>
         </div>
+
+        <!-- Personal Tasks -->
         <div class="task-container">
             <h2>Your Tasks</h2>
             <?php if (empty($tasksWithChecklist)): ?>
             <p>No tasks available.</p>
             <?php else: ?>
             <ul class="task-list">
-                <?php foreach ($tasksWithChecklist as $task):
+                <?php foreach ($tasksWithChecklist as $task): ?>
+                <?php
                     $dueDateTime = new DateTime($task['due_date'], new DateTimeZone('UTC'));
                     $dueDateTime->setTimezone($userTimezone);
                     $now = new DateTime("now", $userTimezone);
@@ -116,10 +134,63 @@ if (isset($_GET['logout'])) {
                 <?php endforeach; ?>
             </ul>
             <?php endif; ?>
-            <div class="logout-container" style="margin-top: 20px;">
-                <a href="?logout" class="btn">Logout</a>
-                <a href="calendar.php" class="btn">Calendar</a>
-            </div>
+        </div>
+
+        <!-- Group Tasks -->
+        <?php foreach ($groupTasksWithChecklist as $groupName => $tasks): ?>
+        <div class="task-container">
+            <h2><?php echo htmlspecialchars($groupName); ?>'s Tasks</h2>
+            <?php if (empty($tasks)): ?>
+            <p>No tasks available.</p>
+            <?php else: ?>
+            <ul class="task-list">
+                <?php foreach ($tasks as $task): ?>
+                <?php
+                    // Define the dueDateTime within the loop for each task
+                    $dueDateTime = new DateTime($task['due_date'], new DateTimeZone('UTC'));
+                    $dueDateTime->setTimezone($userTimezone);
+                    $taskClass = ''; // Initialize taskClass variable
+                    // Repeat the task class logic here
+                    $now = new DateTime("now", $userTimezone);
+                    $interval = $now->diff($dueDateTime);
+                    if ($interval->invert == 1) {
+                        $taskClass = 'task-past-due';
+                    } elseif ($interval->days == 0 && $interval->h < 3) {
+                        $taskClass = 'task-soon';
+                    } elseif ($interval->days == 0) {
+                        $taskClass = 'task-today';
+                    } else {
+                        $taskClass = 'task-item-green';
+                    }
+                ?>
+                <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?><?php echo $task['completed'] ? ' completed' : ''; ?>">
+                    <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
+                    <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>">
+                        <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
+                    </button>
+                    <?php if (!empty($task['checklist_items'])): ?>
+                    <ul>
+                        <?php foreach ($task['checklist_items'] as $item): ?>
+                        <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
+                            <?php echo htmlspecialchars($item['content']); ?>
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>">
+                                <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
+                            </button>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+
+        <div class="logout-container" style="margin-top: 20px;">
+            <a href="?logout" class="btn">Logout</a>
+            <a href="calendar.php" class="btn">Calendar</a>
         </div>
     </div>
     <script>
