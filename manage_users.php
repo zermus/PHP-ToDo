@@ -25,6 +25,9 @@ if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     exit();
 }
 
+$errorMessage = '';
+$successMessage = '';
+
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -47,41 +50,56 @@ try {
     $users = $usersStmt->fetchAll();
 
     $isSuperAdmin = $userRole === 'super_admin';
-
     $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admi
 n')";
     $groupsStmt = $pdo->prepare("SELECT id, name FROM user_groups $exclusionQuery");
     $groupsStmt->execute();
     $groups = $groupsStmt->fetchAll();
 
-    // Define membershipQuery here
     $membershipQuery = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (isset($_POST['action'])) {
-            switch ($_POST['action']) {
-                case 'toggle_registration':
-                    $newStatus = isset($_POST['registration_status']) ? '1' : '0';
-                    $updateStmt = $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'");
-                    $updateStmt->execute([$newStatus]);
-                    break;
-                case 'make_admin':
-                case 'demote_user':
-                case 'delete_user':
-                case 'update_timezone':
-                    handleUserActions($pdo, $_POST);
-                    break;
-                case 'remove_from_group':
-                    if (isset($_POST['user_id'], $_POST['group_id']) && ($isSuperAdmin || !groupHasSuperAdmin($pdo, $_POST['group_id']))) {
-                        $removeStmt = $pdo->prepare("DELETE FROM group_memberships WHERE user_id = ? AND group_id = ?");
-                        $removeStmt->execute([$_POST['user_id'], $_POST['group_id']]);
-                    }
-                    break;
-            }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+        switch ($_POST['action']) {
+            case 'toggle_registration':
+                $newStatus = isset($_POST['registration_status']) ? '1' : '0';
+                $updateStmt = $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'");
+                $updateStmt->execute([$newStatus]);
+                header('Location: manage_users.php'); // Redirect to refresh the page
+                exit();
+                break;
+            case 'make_admin':
+            case 'demote_user':
+            case 'delete_user':
+            case 'update_timezone':
+                handleUserActions($pdo, $_POST);
+                break;
+            case 'remove_from_group':
+                if (isset($_POST['user_id'], $_POST['group_id']) && ($isSuperAdmin || !groupHasSuperAdmin($pdo, $_POST['group_id']))) {
+                    $removeStmt = $pdo->prepare("DELETE FROM group_memberships WHERE user_id = ? AND group_id = ?");
+                    $removeStmt->execute([$_POST['user_id'], $_POST['group_id']]);
+                }
+                break;
+            case 'delete_group':
+                $response = handleGroupDeletion($pdo, $_POST['group_id']);
+                if (isset($response['error'])) {
+                    $errorMessage = $response['error'];
+                }
+                if (isset($response['success'])) {
+                    $successMessage = $response['success'];
+                }
+                break;
+            case 'create_group':
+                $groupName = filter_input(INPUT_POST, 'group_name', FILTER_SANITIZE_STRING);
+                if (!empty($groupName)) {
+                    $createGroupStmt = $pdo->prepare("INSERT INTO user_groups (name) VALUES (?)");
+                    $createGroupStmt->execute([$groupName]);
+                    $successMessage = "Group created successfully.";
+                    // Update groups list after creation
+                    $groupsStmt->execute();
+                    $groups = $groupsStmt->fetchAll();
+                }
+                break;
         }
-        handleGroupActions($pdo, $_POST);
-        header('Location: manage_users.php');
-        exit();
     }
 } catch (PDOException $e) {
     die("Database error: " . $e->getMessage());
@@ -91,7 +109,6 @@ function handleUserActions($pdo, $postData) {
     $userId = $postData['user_id'] ?? null;
     if (!$userId) return;
 
-    // Prevent admin from changing super admin's timezone
     if ($GLOBALS['userRole'] == 'admin') {
         $roleCheckStmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
         $roleCheckStmt->execute([$userId]);
@@ -119,20 +136,30 @@ function handleUserActions($pdo, $postData) {
     }
 }
 
-function handleGroupActions($pdo, $postData) {
-    if (isset($postData['create_group'])) {
-        $groupName = filter_input(INPUT_POST, 'group_name', FILTER_SANITIZE_STRING);
-        if (!empty($groupName)) {
-            $pdo->prepare("INSERT INTO user_groups (name) VALUES (?)")->execute([$groupName]);
-        }
+function handleGroupDeletion($pdo, $groupId) {
+    $errorMessage = '';
+
+    $memberCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM group_memberships WHERE group_id = ?");
+    $memberCheckStmt->execute([$groupId]);
+    if ($memberCheckStmt->fetchColumn() > 0) {
+        return ["error" => "Cannot delete group: There are users in the group."];
     }
-    if (isset($postData['assign_user'])) {
-        $userId = $postData['user_id'];
-        $groupId = $postData['group_id'];
-        if (!empty($userId) && !empty($groupId)) {
-            $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?)")->execute([$userId, $groupId]);
-        }
+
+    $taskCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM tasks WHERE group_id = ?");
+    $taskCheckStmt->execute([$groupId]);
+    if ($taskCheckStmt->fetchColumn() > 0) {
+        return ["error" => "Cannot delete group: There are tasks associated with the group."];
     }
+
+    $deleteGroupStmt = $pdo->prepare("DELETE FROM user_groups WHERE id = ?");
+    $deleteGroupStmt->execute([$groupId]);
+
+    // Re-fetch groups to update the list after deletion
+    global $groupsStmt;
+    $groupsStmt->execute();
+    $GLOBALS['groups'] = $groupsStmt->fetchAll();
+
+    return ["success" => "Group deleted successfully."];
 }
 
 function groupHasSuperAdmin($pdo, $groupId) {
@@ -161,9 +188,14 @@ function groupHasSuperAdmin($pdo, $groupId) {
 
         <form action="manage_users.php" method="post">
             <input type="text" name="group_name" placeholder="Group Name" required>
-            <input type="hidden" name="create_group" value="1">
+            <input type="hidden" name="action" value="create_group">
             <button type="submit" class="btn">Create Group</button>
         </form>
+
+        <!-- Display success message if there is one -->
+        <?php if (!empty($successMessage)): ?>
+            <div style="color: green;"><?php echo $successMessage; ?></div>
+        <?php endif; ?>
 
         <form action="manage_users.php" method="post">
             <select name="user_id" required>
@@ -178,9 +210,26 @@ function groupHasSuperAdmin($pdo, $groupId) {
                     <option value="<?php echo $group['id']; ?>"><?php echo htmlspecialchars($group['name']); ?></option>
                 <?php endforeach; ?>
             </select>
-            <input type="hidden" name="assign_user" value="1">
+            <input type="hidden" name="action" value="assign_user">
             <button type="submit" class="btn">Assign to Group</button>
         </form>
+
+        <!-- Form to delete a group -->
+        <form action="manage_users.php" method="post">
+            <select name="group_id" required>
+                <option value="">Select Group to Delete</option>
+                <?php foreach ($groups as $group): ?>
+                    <option value="<?php echo $group['id']; ?>"><?php echo htmlspecialchars($group['name']); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <input type="hidden" name="action" value="delete_group">
+            <button type="submit" class="btn">Delete Group</button>
+        </form>
+
+        <!-- Display error message if there is one -->
+        <?php if (!empty($errorMessage)): ?>
+            <div style="color: red;"><?php echo $errorMessage; ?></div>
+        <?php endif; ?>
 
         <div class="user-list">
             <table>
@@ -203,7 +252,8 @@ function groupHasSuperAdmin($pdo, $groupId) {
                         <td>
                             <?php if ($user['role'] !== 'super_admin' || $isSuperAdmin): ?>
                             <form action="manage_users.php" method="post">
-                                <select name="timezone" <?php echo ($user['role'] === 'super_admin' && !$isSuperAdmin) ? 'disabled' : ''; ?>>
+                                <select name="timezone" onchange="this.form.submit()" <?php echo ($user['role'] === 'super_admin' && !$isSuperAdmin) ? 'disabled' : ''; ?
+>>
                                     <?php foreach ($timezones as $tz => $name): ?>
                                     <option value="<?php echo $tz; ?>" <?php if ($user['timezone'] == $tz) echo 'selected'; ?>>
                                         <?php echo htmlspecialchars($name); ?>
@@ -212,12 +262,9 @@ function groupHasSuperAdmin($pdo, $groupId) {
                                 </select>
                                 <input type="hidden" name="action" value="update_timezone">
                                 <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                <?php if (!($user['role'] === 'super_admin' && !$isSuperAdmin)): ?>
-                                <button type="submit" class="btn">Update Timezone</button>
-                                <?php endif; ?>
                             </form>
                             <?php else: ?>
-                            <?php echo $user['timezone']; ?>
+                            <?php echo htmlspecialchars($user['timezone']); ?>
                             <?php endif; ?>
                         </td>
                         <td>
