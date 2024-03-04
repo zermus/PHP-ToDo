@@ -28,8 +28,8 @@ try {
     $groupTaskIds = [];
 
     // Fetch group tasks
-    $groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_groups g O
-N gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
+    $groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_group
+s g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
     $groupTasksStmt->execute([$_SESSION['user_id']]);
     $groupTasks = $groupTasksStmt->fetchAll();
 
@@ -46,7 +46,8 @@ N gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due
     // Fetch personal tasks excluding those assigned to groups
     $tasksWithChecklist = [];
     $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?')); // Create placeholders for the query
-    $query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date ASC";
+    $query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date A
+SC";
     $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
     $taskStmt = $pdo->prepare($query);
     $taskStmt->execute($params);
@@ -123,7 +124,8 @@ if (isset($_GET['logout'])) {
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>
+">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -174,7 +176,8 @@ if (isset($_GET['logout'])) {
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>
+">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
