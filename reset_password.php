@@ -60,7 +60,8 @@ if (isset($_POST['reset_password'])) {
         <form action="" method="post">
             <input type="password" id="password" name="password" placeholder="New Password" required>
             <input type="password" id="verifyPassword" name="confirmPassword" placeholder="Confirm New Password" required>
-            <div id="passwordMessage" class="message">Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.
+            <div id="passwordMessage" class="message">Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, o
+ne number, and one special character.
 </div>
             <button type="submit" name="reset_password">Reset Password</button>
         </form>
@@ -71,4 +72,3 @@ if (isset($_POST['reset_password'])) {
         <?php endif; ?>
     </div>
 </body>
-</html>
