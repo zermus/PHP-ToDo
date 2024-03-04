@@ -2,6 +2,13 @@
 // Start the session
 session_start();
 
+// Enforce HTTPS
+if ($_SERVER['HTTPS'] != "on") {
+    $url = "https://". $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
+    header("Location: $url");
+    exit;
+}
+
 // Redirect to main.php if already logged in
 if (isset($_SESSION['user_id']) || isset($_COOKIE['rememberMe'])) {
     header('Location: main.php');
@@ -12,38 +19,50 @@ require 'config.php';
 
 $message = '';
 
+// CSRF token generation
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 if (isset($_POST['login'])) {
-    $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
-    $password = $_POST['password'];
-    $rememberMe = isset($_POST['rememberMe']);
+    // CSRF token validation
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $message = "CSRF token mismatch.";
+    } else {
+        $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
+        $password = $_POST['password'];
+        $rememberMe = isset($_POST['rememberMe']);
 
-    try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        try {
+            $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
-        $stmt->execute([$username]);
-        $user = $stmt->fetch();
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+            $stmt->execute([$username]);
+            $user = $stmt->fetch();
 
-        if ($user && password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
+            if ($user && password_verify($password, $user['password'])) {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
 
-            if ($rememberMe) {
-                $rememberToken = bin2hex(random_bytes(16));
-                setcookie('rememberMe', $rememberToken, time() + 86400 * 30, '/'); // Set cookie for 30 days
+                if ($rememberMe) {
+                    $rememberToken = bin2hex(random_bytes(16));
+                    // Set cookie with secure and httponly flags
+                    setcookie('rememberMe', $rememberToken, time() + 86400 * 30, '/', '', true, true);
 
-                $updateStmt = $pdo->prepare("UPDATE users SET remember_token = ? WHERE id = ?");
-                $updateStmt->execute([$rememberToken, $user['id']]);
+                    $updateStmt = $pdo->prepare("UPDATE users SET remember_token = ? WHERE id = ?");
+                    $updateStmt->execute([$rememberToken, $user['id']]);
+                }
+
+                header("Location: main.php");
+                exit();
+            } else {
+                $message = "Invalid username or password.";
             }
-
-            header("Location: main.php");
-            exit();
-        } else {
-            $message = "Invalid username or password.";
+        } catch (PDOException $e) {
+            // Generic error message
+            $message = "An error occurred. Please try again.";
         }
-    } catch (PDOException $e) {
-        $message = "Error: " . $e->getMessage();
     }
 }
 ?>
@@ -60,6 +79,7 @@ if (isset($_POST['login'])) {
     <div class="login-form">
         <h2>To Do Login Page</h2>
         <form action="" method="post">
+            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
             <input type="text" name="username" placeholder="Username" required>
             <input type="password" name="password" placeholder="Password" required>
             <div class="remember-me">
