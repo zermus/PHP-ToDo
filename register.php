@@ -11,11 +11,17 @@ if (isset($_SESSION['user_id']) || isset($_COOKIE['rememberMe'])) {
 
 // Initialize PDO object if not already initialized
 if (!isset($pdo) || !($pdo instanceof PDO)) {
+    $dsn = "mysql:host=$host;dbname=$dbname";
+    $options = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ];
     try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo = new PDO($dsn, $db_username, $db_password, $options);
     } catch (PDOException $e) {
-        die("Database connection error: " . $e->getMessage());
+        // Log error and present a generic error message to the user
+        error_log($e->getMessage());
+        die("Database connection error. Please try again later.");
     }
 }
 
@@ -33,18 +39,18 @@ if (isset($_POST['register']) && $registrationEnabled) {
         exit('No bots allowed!');
     }
 
+    // Sanitize and validate input data
     $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
     $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'];
-    $verifyPassword = $_POST['verifyPassword'];
-    $timezone = $_POST['timezone'];
+    $password = filter_input(INPUT_POST, 'password', FILTER_SANITIZE_STRING);
+    $verifyPassword = filter_input(INPUT_POST, 'verifyPassword', FILTER_SANITIZE_STRING);
+    $timezone = filter_input(INPUT_POST, 'timezone', FILTER_SANITIZE_STRING);
 
     if ($password !== $verifyPassword) {
         $message = "The passwords do not match. Please try again.";
     } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/", $password)) {
-        $message = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one
-special character.";
+        $message = "Password must meet the requirements.";
     } else {
         try {
             $userCheckStmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
@@ -53,14 +59,13 @@ special character.";
                 $message = "Username or Email already exists.";
             } else {
                 $verificationToken = bin2hex(random_bytes(16));
-                $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'u
-ser', ?, ?)");
-                $stmt->execute([$name, $username, $email, password_hash($password, PASSWORD_DEFAULT), $verificationToken, $timezone]);
+                $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'user', ?, ?)");
+                $stmt->execute([$name, $username, $email, $passwordHash, $verificationToken, $timezone]);
 
                 $verificationLink = $base_url . "verify.php?token=" . $verificationToken;
                 $subject = "Verify Your Email";
-                $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:\n$verificationLink\n
-\nThank you!";
+                $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:\n$verificationLink\n\nThank you!";
                 $headers = "From: " . $from_email;
 
                 if (mail($email, $subject, $emailMessage, $headers)) {
