@@ -74,10 +74,11 @@ try {
     <div class="calendar-container">
         <h1>Calendar</h1>
         <div class="month-navigation">
-            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-month">P
-revious</button>
+            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-mon
+th">Previous</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
-            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
+            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</bu
+tton>
         </div>
         <div class="calendar">
             <table>
@@ -120,8 +121,8 @@ revious</button>
                                         } elseif ($interval->days == 0) {
                                             $taskClass = 'task-today';
                                         }
-                                        echo "<div class='task $taskClass'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchars($task['s
-ummary']) . "</a></div>";
+                                        echo "<div class='task $taskClass'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchars($ta
+sk['summary']) . "</a></div>";
                                     }
                                 }
                             }
