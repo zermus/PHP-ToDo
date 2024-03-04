@@ -154,8 +154,8 @@ try {
                 <select id="reminderPreference" name="reminderPreference">
                     <option value="">None</option>
                     <?php foreach ($validReminderPreferences as $option): ?>
-                        <option value="<?php echo $option; ?>" <?php echo ($reminderPreference === $option ? 'selected' : ''); ?>><?php echo htmlspecialchars($option); ?
-></option>
+                        <option value="<?php echo $option; ?>" <?php echo ($reminderPreference === $option ? 'selected' : ''); ?>><?php echo htmlspecialchars($optio
+n); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -166,8 +166,8 @@ try {
                 <select id="group_id" name="group_id">
                     <option value="">None</option>
                     <?php foreach ($groups as $group): ?>
-                        <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>><?php echo htmlspecialchars($gro
-up['name']); ?></option>
+                        <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>><?php echo htmlspecialchars
+($group['name']); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
