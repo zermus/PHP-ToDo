@@ -2,13 +2,6 @@
 // Start the session
 session_start();
 
-// Enforce HTTPS
-if ($_SERVER['HTTPS'] != "on") {
-    $url = "https://". $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
-    header("Location: $url");
-    exit;
-}
-
 // Redirect to main.php if already logged in
 if (isset($_SESSION['user_id']) || isset($_COOKIE['rememberMe'])) {
     header('Location: main.php');
