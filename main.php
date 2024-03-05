@@ -1,13 +1,9 @@
 <?php
 session_start();
+
 require 'config.php';
 
 // User Authentication
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit();
-}
-
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
@@ -40,12 +36,12 @@ s g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY 
         $checklistItems = $checklistStmt->fetchAll();
         $task['checklist_items'] = $checklistItems;
         $groupTasksWithChecklist[$task['group_name']][] = $task;
-        $groupTaskIds[] = $task['id']; // Add this task ID to the array
+        $groupTaskIds[] = $task['id'];
     }
 
     // Fetch personal tasks excluding those assigned to groups
     $tasksWithChecklist = [];
-    $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?')); // Create placeholders for the query
+    $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
     $query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date A
 SC";
     $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
