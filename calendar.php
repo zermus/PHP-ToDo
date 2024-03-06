@@ -2,7 +2,6 @@
 session_start();
 require 'config.php';
 
-// User Authentication
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
@@ -12,30 +11,27 @@ try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Fetch User Details
     $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
     $userStmt->execute([$_SESSION['user_id']]);
     $userDetails = $userStmt->fetch();
     $userTimezone = new DateTimeZone($userDetails['timezone'] ?? 'UTC');
 
-    // Fetch Tasks for Current Month for both individual and group tasks
     $currentMonth = isset($_GET['month']) ? $_GET['month'] : date('m');
     $currentYear = isset($_GET['year']) ? $_GET['year'] : date('Y');
     $firstDayOfMonth = new DateTime("$currentYear-$currentMonth-01", $userTimezone);
     $firstDayOfMonth->modify('first day of this month');
     $dayOfWeek = $firstDayOfMonth->format('w');
     $startDayOfWeek = clone $firstDayOfMonth;
-    if ($dayOfWeek != 0) { // Adjust if the first day is not Sunday
+    if ($dayOfWeek != 0) {
         $startDayOfWeek->modify('-' . $dayOfWeek . ' days');
     }
     $lastDayOfMonth = clone $firstDayOfMonth;
     $lastDayOfMonth->modify('last day of this month');
     $endDayOfWeek = clone $lastDayOfMonth;
-    if ($lastDayOfMonth->format('w') != 6) { // Adjust if the last day is not Saturday
+    if ($lastDayOfMonth->format('w') != 6) {
         $endDayOfWeek->modify('+'.(6 - $lastDayOfMonth->format('w')).' days');
     }
 
-    // Adjust the query to include tasks shared with groups
     $taskStmt = $pdo->prepare("
         SELECT t.* FROM tasks t
         LEFT JOIN group_memberships gm ON t.group_id = gm.group_id
@@ -51,7 +47,6 @@ try {
     ]);
     $tasks = $taskStmt->fetchAll();
 
-    // Calculate previous and next months and years
     $previousMonth = date('m', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01")));
     $previousYear = date('Y', strtotime('-1 month', strtotime("$currentYear-$currentMonth-01")));
     $nextMonth = date('m', strtotime('+1 month', strtotime("$currentYear-$currentMonth-01")));
@@ -74,11 +69,10 @@ try {
     <div class="calendar-container">
         <h1>Calendar</h1>
         <div class="month-navigation">
-            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-mon
-th">Previous</button>
+            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-month">Pr
+evious</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
-            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</bu
-tton>
+            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
         </div>
         <div class="calendar">
             <table>
@@ -97,7 +91,6 @@ tton>
                     <?php
                     $currentDate = clone $startDayOfWeek;
                     while ($currentDate <= $endDayOfWeek) {
-                        // Check to avoid unnecessary row at the end
                         if ($currentDate > $lastDayOfMonth && $currentDate->format('w') == 0) {
                             break;
                         }
@@ -113,16 +106,18 @@ tton>
                                     if ($dueDate->format('Y-m-d') === $currentDate->format('Y-m-d')) {
                                         $now = new DateTime("now", $userTimezone);
                                         $interval = $now->diff($dueDate);
-                                        $taskClass = 'task-item-green'; // Default color for tasks
-                                        if ($interval->invert == 1) {
-                                            $taskClass = $task['completed'] ? 'task-completed' : 'task-past-due';
-                                        } elseif ($interval->days == 0 && $interval->h < 3) {
-                                            $taskClass = 'task-soon';
-                                        } elseif ($interval->days == 0) {
-                                            $taskClass = 'task-today';
+                                        $taskClass = $task['completed'] ? 'task-completed' : 'task-item-green';
+                                        if (!$task['completed']) {
+                                            if ($interval->invert == 1) {
+                                                $taskClass = 'task-past-due';
+                                            } elseif ($interval->days == 0 && $interval->h < 3) {
+                                                $taskClass = 'task-soon';
+                                            } elseif ($interval->days == 0) {
+                                                $taskClass = 'task-today';
+                                            }
                                         }
-                                        echo "<div class='task $taskClass'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchars($ta
-sk['summary']) . "</a></div>";
+                                        echo "<div class='task $taskClass'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecialchars($task['su
+mmary']) . "</a></div>";
                                     }
                                 }
                             }
