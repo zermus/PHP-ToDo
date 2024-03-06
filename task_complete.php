@@ -2,7 +2,7 @@
 session_start();
 require 'config.php';
 
-$response = ['success' => false];
+$response = ['success' => false, 'newState' => null];
 
 if (isset($_POST['task_id']) && isset($_SESSION['user_id'])) {
     $taskId = $_POST['task_id'];
@@ -12,29 +12,27 @@ if (isset($_POST['task_id']) && isset($_SESSION['user_id'])) {
         $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        // Check current state of the task for both individual users and group members
-        $checkStmt = $pdo->prepare("
-            SELECT completed
-            FROM tasks t
-            LEFT JOIN group_memberships gm ON t.group_id = gm.group_id
-            WHERE t.id = ? AND (t.user_id = ? OR (gm.user_id = ? AND gm.group_id = t.group_id))
-        ");
-        $checkStmt->execute([$taskId, $userId, $userId]);
-        $task = $checkStmt->fetch();
+        $taskStmt = $pdo->prepare("SELECT user_id, group_id, completed, receive_completion_email FROM tasks WHERE id = ?");
+        $taskStmt->execute([$taskId]);
+        $task = $taskStmt->fetch();
 
         if ($task) {
-            $newState = $task['completed'] ? 0 : 1; // Toggle the state and convert to integer
-            // Update task completion state for both individual users and group tasks
-            $updateStmt = $pdo->prepare("
-                UPDATE tasks t
-                LEFT JOIN group_memberships gm ON t.group_id = gm.group_id
-                SET completed = ?
-                WHERE t.id = ? AND (t.user_id = ? OR (gm.user_id = ? AND gm.group_id = t.group_id))
-            ");
-            $updateStmt->execute([$newState, $taskId, $userId, $userId]);
+            $isAuthorized = ($task['user_id'] == $userId) || ($task['group_id'] && inGroup($pdo, $userId, $task['group_id']));
 
-            $response['success'] = true;
-            $response['newState'] = $newState;
+            if ($isAuthorized) {
+                $newState = $task['completed'] ? 0 : 1;
+
+                // Update the task as completed or not, and reset completion_email_sent if uncompleted
+                $updateStmt = $pdo->prepare("UPDATE tasks SET completed = ?, completion_email_sent = ? WHERE id = ?");
+                $updateStmt->execute([$newState, $newState ? 0 : null, $taskId]);
+
+                $response['success'] = true;
+                $response['newState'] = $newState;
+            } else {
+                $response['error'] = 'Not authorized to complete this task.';
+            }
+        } else {
+            $response['error'] = 'Task not found.';
         }
     } catch (PDOException $e) {
         $response['error'] = $e->getMessage();
@@ -44,4 +42,10 @@ if (isset($_POST['task_id']) && isset($_SESSION['user_id'])) {
 }
 
 echo json_encode($response);
+
+function inGroup($pdo, $userId, $groupId) {
+    $groupStmt = $pdo->prepare("SELECT COUNT(*) FROM group_memberships WHERE user_id = ? AND group_id = ?");
+    $groupStmt->execute([$userId, $groupId]);
+    return $groupStmt->fetchColumn() > 0;
+}
 ?>
