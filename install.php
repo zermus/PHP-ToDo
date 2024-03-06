@@ -30,8 +30,7 @@ if (isset($_POST['install'])) {
     if ($adminPassword !== $verifyPassword) {
         $message = "The passwords do not match. Please try again.";
     } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/", $adminPassword)) {
-        $message = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special charact
-er.";
+        $message = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.";
     } else {
         try {
             $pdo = new PDO("mysql:host=$host", $db_username, $db_password);
@@ -72,7 +71,7 @@ er.";
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) CHARACTER SET utf8 COLLATE utf8_general_ci");
 
-            // Create the tasks table
+            // Update the tasks table creation logic with new fields
             $pdo->exec("CREATE TABLE IF NOT EXISTS tasks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NOT NULL,
@@ -83,6 +82,9 @@ er.";
                 reminder_preference ENUM('15m', '30m', '1h', '2h', '4h', '12h', '24h') DEFAULT NULL,
                 reminder_sent BOOLEAN DEFAULT FALSE,
                 completed BOOLEAN DEFAULT FALSE,
+                receive_completion_email BOOLEAN DEFAULT FALSE,
+                completion_email_sent BOOLEAN DEFAULT FALSE,
+                last_notification_sent DATETIME DEFAULT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (group_id) REFERENCES user_groups(id) ON DELETE SET NULL
             ) CHARACTER SET utf8 COLLATE utf8_general_ci");
@@ -107,8 +109,7 @@ er.";
 
             // Insert the admin user into the users table
             $verificationToken = bin2hex(random_bytes(16));
-            $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'super_admin', ?, ?)"
-);
+            $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'super_admin', ?, ?)");
 
             $stmt->execute([$adminName, $adminUsername, $adminEmail, password_hash($adminPassword, PASSWORD_DEFAULT), $verificationToken, $adminTimezone]);
 
@@ -118,16 +119,14 @@ er.";
             // Send the verification email to the admin
             $verificationLink = $base_url . "verify.php?token=" . $verificationToken;
             $subject = "Verify Your Email";
-            $emailMessage = "Hello $adminName,\n\nPlease click the following link to verify your email and activate your admin account:\n$verificationLink\n\nThank
-you!";
+            $emailMessage = "Hello $adminName,\n\nPlease click the following link to verify your email and activate your admin account:\n$verificationLink\n\nThank you!";
             $headers = "From: " . $from_email;
             if (mail($adminEmail, $subject, $emailMessage, $headers)) {
                 $message = "Installation completed successfully! Please check your email to verify your account.<br><br>" .
                     "<strong>Post-Installation Steps:</strong><br>" .
                     "1. <strong>Verify your email</strong> by clicking the link sent to your email address.<br>" .
                     "2. <strong>Delete the 'install.php' file</strong> from your server for security purposes.<br>" .
-                    "3. <strong>Set up a cron job</strong> to run 'send_reminders.php' every minute. You can do this by adding the following line to your crontab:<b
-r>" .
+                    "3. <strong>Set up a cron job</strong> to run 'send_reminders.php' every minute. You can do this by adding the following line to your crontab:<br>" .
                     "<code>* * * * * apache /usr/bin/php " . htmlspecialchars($installationPath) . "send_reminders.php</code><br>" .
                     "Be sure to replace apache with whatever user your webserver runs as.";
                 $installationSuccessful = true;
@@ -300,8 +299,8 @@ r>" .
             <div>
                 <label for="adminPassword">Admin Password:</label>
                 <input type="password" id="adminPassword" name="adminPassword" required>
-                <div id="passwordMessage" class="password-requirements">Password must be at least 8 characters long and include at least one uppercase letter, one l
-owercase letter, one
+                <div id="passwordMessage" class="password-requirements">Password must be at least 8 characters long and include at least one uppercase letter, one lowerca
+se letter, one
  number, and one special character.</div>
             </div>
             <div>
