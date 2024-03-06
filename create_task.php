@@ -34,6 +34,7 @@ try {
         $isChecklist = isset($_POST['isChecklist']) ? 1 : 0;
         $checklistItems = isset($_POST['checklist']) ? $_POST['checklist'] : [];
         $groupId = !empty($_POST['group_id']) ? $_POST['group_id'] : null;
+        $receiveCompletionEmail = isset($_POST['receiveCompletionEmail']) ? 1 : 0; // New field
 
         if (empty($taskName)) {
             $errorMessage = 'Please enter a task name.';
@@ -43,9 +44,10 @@ try {
             $dueDateTime->setTimezone(new DateTimeZone('UTC'));
             $reminderPreference = !empty($reminderPreference) ? $reminderPreference : NULL;
 
-            // Insert task with potential group ID
-            $stmt = $pdo->prepare("INSERT INTO tasks (user_id, group_id, summary, due_date, reminder_preference, details) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$_SESSION['user_id'], $groupId, $taskName, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $taskDetails]);
+            // Insert task with potential group ID and completion email preference
+            $stmt = $pdo->prepare("INSERT INTO tasks (user_id, group_id, summary, due_date, reminder_preference, details, receive_completion_email) VALUES (?, ?, ?, ?, ?,
+ ?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $groupId, $taskName, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $taskDetails, $receiveCompletionEmail]);
 
             $taskId = $pdo->lastInsertId();
 
@@ -125,6 +127,12 @@ try {
                     <option value="12h">12 hours before</option>
                     <option value="24h">24 hours before</option>
                 </select>
+            </div>
+
+            <!-- Completion Email Preference -->
+            <div class="form-group">
+                <input type="checkbox" id="receiveCompletionEmail" name="receiveCompletionEmail">
+                <label for="receiveCompletionEmail">Receive email upon task completion</label>
             </div>
 
             <!-- Group Assignment Dropdown (visible only if user is part of a group) -->
