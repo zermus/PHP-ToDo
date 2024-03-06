@@ -24,8 +24,8 @@ try {
     $groupTaskIds = [];
 
     // Fetch group tasks
-    $groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_group
-s g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
+    $groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_groups g ON
+ gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
     $groupTasksStmt->execute([$_SESSION['user_id']]);
     $groupTasks = $groupTasksStmt->fetchAll();
 
@@ -42,8 +42,7 @@ s g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY 
     // Fetch personal tasks excluding those assigned to groups
     $tasksWithChecklist = [];
     $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
-    $query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date A
-SC";
+    $query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date ASC";
     $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
     $taskStmt = $pdo->prepare($query);
     $taskStmt->execute($params);
@@ -100,19 +99,22 @@ if (isset($_GET['logout'])) {
                     $dueDateTime->setTimezone($userTimezone);
                     $now = new DateTime("now", $userTimezone);
                     $interval = $now->diff($dueDateTime);
-                    $taskClass = 'task-item-green';
+                    $taskClass = $task['completed'] ? 'task-item completed' : 'task-item';
                     if ($interval->invert == 1) {
-                        $taskClass = 'task-past-due';
+                        $taskClass .= ' task-past-due';
                     } elseif ($interval->days == 0 && $interval->h < 3) {
-                        $taskClass = 'task-soon';
+                        $taskClass .= ' task-soon';
                     } elseif ($interval->days == 0) {
-                        $taskClass = 'task-today';
+                        $taskClass .= ' task-today';
+                    } else {
+                        $taskClass .= ' task-item-green';
                     }
                 ?>
-                <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?><?php echo $task['completed'] ? ' completed' : ''; ?>">
+                <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)"
+>
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                     <?php if (!empty($task['checklist_items'])): ?>
@@ -120,8 +122,7 @@ if (isset($_GET['logout'])) {
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>
-">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -135,8 +136,8 @@ if (isset($_GET['logout'])) {
         </div>
 
         <!-- Group Tasks -->
-        <?php foreach ($groupTasksWithChecklist as $groupName => $tasks): ?>
         <div class="task-container">
+            <?php foreach ($groupTasksWithChecklist as $groupName => $tasks): ?>
             <h2><?php echo htmlspecialchars($groupName); ?>'s Tasks</h2>
             <?php if (empty($tasks)): ?>
             <p>No tasks available.</p>
@@ -144,88 +145,75 @@ if (isset($_GET['logout'])) {
             <ul class="task-list">
                 <?php foreach ($tasks as $task): ?>
                 <?php
-                    // Define the dueDateTime within the loop for each task
                     $dueDateTime = new DateTime($task['due_date'], new DateTimeZone('UTC'));
                     $dueDateTime->setTimezone($userTimezone);
-                    $taskClass = ''; // Initialize taskClass variable
-                    // Repeat the task class logic here
+                    $taskClass = $task['completed'] ? 'task-item completed' : 'task-item';
                     $now = new DateTime("now", $userTimezone);
                     $interval = $now->diff($dueDateTime);
                     if ($interval->invert == 1) {
-                        $taskClass = 'task-past-due';
+                        $taskClass .= ' task-past-due';
                     } elseif ($interval->days == 0 && $interval->h < 3) {
-                        $taskClass = 'task-soon';
+                        $taskClass .= ' task-soon';
                     } elseif ($interval->days == 0) {
-                        $taskClass = 'task-today';
+                        $taskClass .= ' task-today';
                     } else {
-                        $taskClass = 'task-item-green';
+                        $taskClass .= ' task-item-green';
                     }
                 ?>
-                <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?><?php echo $task['completed'] ? ' completed' : ''; ?>">
+                <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)"
+>
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
-                    <?php if (!empty($task['checklist_items'])): ?>
-                    <ul>
-                        <?php foreach ($task['checklist_items'] as $item): ?>
-                        <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
-                            <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>
-">
-                                <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
-                            </button>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <?php endif; ?>
                 </li>
                 <?php endforeach; ?>
             </ul>
             <?php endif; ?>
+            <?php endforeach; ?>
         </div>
-        <?php endforeach; ?>
 
         <div class="logout-container" style="margin-top: 20px;">
-            <a href="?logout" class="btn">Logout</a>
             <a href="calendar.php" class="btn">Calendar</a>
+            <a href="?logout" class="btn">Logout</a>
         </div>
     </div>
     <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        document.querySelectorAll('.complete-task').forEach(button => {
-            button.addEventListener('click', function() {
-                const taskId = this.getAttribute('data-task-id');
-                fetch('task_complete.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded',},
-                    body: 'task_id=' + taskId
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const taskElement = document.getElementById('task-' + taskId);
-                        taskElement.classList.toggle('completed');
-                        this.textContent = taskElement.classList.contains('completed') ? 'Uncomplete Task' : 'Complete Task';
-                    } else {
-                        alert('Error: ' + data.error);
-                    }
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                });
-            });
-        });
+    function toggleTaskCompletion(button, taskId) {
+        const taskElement = document.getElementById('task-' + taskId);
+        taskElement.classList.toggle('completed');
+        button.textContent = taskElement.classList.contains('completed') ? 'Uncomplete Task' : 'Complete Task';
 
+        fetch('task_complete.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'task_id=' + taskId
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                taskElement.classList.toggle('completed');
+                button.textContent = taskElement.classList.contains('completed') ? 'Uncomplete Task' : 'Complete Task';
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch((error) => {
+            taskElement.classList.toggle('completed');
+            button.textContent = taskElement.classList.contains('completed') ? 'Uncomplete Task' : 'Complete Task';
+            console.error('Error:', error);
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
         document.querySelectorAll('.complete-checklist-item').forEach(button => {
             button.addEventListener('click', function() {
                 const itemId = this.getAttribute('data-item-id');
                 const itemElement = document.getElementById('item-' + itemId);
-                const isCompleted = itemElement.classList.contains('completed') ? 0 : 1; // Determine the new completion status
+                const isCompleted = itemElement.classList.contains('completed') ? 0 : 1;
                 fetch('checklist_item_complete.php', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded',},
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                     body: 'item_id=' + itemId + '&is_completed=' + isCompleted
                 })
                 .then(response => response.json())
