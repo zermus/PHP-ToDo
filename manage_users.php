@@ -2,7 +2,6 @@
 session_start();
 require 'config.php';
 
-// Timezone options as extracted from install.php
 $timezones = [
     "America/New_York" => "Eastern Time (US & Canada)",
     "America/Chicago" => "Central Time (US & Canada)",
@@ -50,8 +49,8 @@ try {
     $users = $usersStmt->fetchAll();
 
     $isSuperAdmin = $userRole === 'super_admin';
-    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admi
-n')";
+    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin
+')";
     $groupsStmt = $pdo->prepare("SELECT id, name FROM user_groups $exclusionQuery");
     $groupsStmt->execute();
     $groups = $groupsStmt->fetchAll();
@@ -64,7 +63,7 @@ n')";
                 $newStatus = isset($_POST['registration_status']) ? '1' : '0';
                 $updateStmt = $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'");
                 $updateStmt->execute([$newStatus]);
-                header('Location: manage_users.php'); // Redirect to refresh the page
+                header('Location: manage_users.php');
                 exit();
                 break;
             case 'make_admin':
@@ -72,15 +71,25 @@ n')";
             case 'delete_user':
             case 'update_timezone':
                 handleUserActions($pdo, $_POST);
+                $usersStmt->execute();
+                $users = $usersStmt->fetchAll();
+                break;
+            case 'assign_user':
+                if (isset($_POST['user_id'], $_POST['group_id'])) {
+                    $assignStmt = $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE group_id = VALUES(group_id)");
+                    $assignStmt->execute([$_POST['user_id'], $_POST['group_id']]);
+                    $successMessage = "User assigned to group successfully.";
+                }
                 break;
             case 'remove_from_group':
-                if (isset($_POST['user_id'], $_POST['group_id']) && ($isSuperAdmin || !groupHasSuperAdmin($pdo, $_POST['group_id']))) {
+                if (isset($_POST['user_id'], $_POST['group_id'])) {
                     $removeStmt = $pdo->prepare("DELETE FROM group_memberships WHERE user_id = ? AND group_id = ?");
                     $removeStmt->execute([$_POST['user_id'], $_POST['group_id']]);
+                    $successMessage = "User removed from group successfully.";
                 }
                 break;
             case 'delete_group':
-                $response = handleGroupDeletion($pdo, $_POST['group_id']);
+                $response = handleGroupDeletion($pdo, $_POST['group_id'], $groupsStmt);
                 if (isset($response['error'])) {
                     $errorMessage = $response['error'];
                 }
@@ -94,7 +103,6 @@ n')";
                     $createGroupStmt = $pdo->prepare("INSERT INTO user_groups (name) VALUES (?)");
                     $createGroupStmt->execute([$groupName]);
                     $successMessage = "Group created successfully.";
-                    // Update groups list after creation
                     $groupsStmt->execute();
                     $groups = $groupsStmt->fetchAll();
                 }
@@ -109,12 +117,12 @@ function handleUserActions($pdo, $postData) {
     $userId = $postData['user_id'] ?? null;
     if (!$userId) return;
 
-    if ($GLOBALS['userRole'] == 'admin') {
-        $roleCheckStmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-        $roleCheckStmt->execute([$userId]);
-        if ($roleCheckStmt->fetchColumn() == 'super_admin') {
-            return;
-        }
+    $targetUserRoleStmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+    $targetUserRoleStmt->execute([$userId]);
+    $targetUserRole = $targetUserRoleStmt->fetchColumn();
+
+    if ($GLOBALS['userRole'] === 'admin' && $targetUserRole === 'super_admin') {
+        return;
     }
 
     switch ($postData['action']) {
@@ -136,7 +144,7 @@ function handleUserActions($pdo, $postData) {
     }
 }
 
-function handleGroupDeletion($pdo, $groupId) {
+function handleGroupDeletion($pdo, $groupId, $groupsStmt) {
     $errorMessage = '';
 
     $memberCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM group_memberships WHERE group_id = ?");
@@ -154,8 +162,6 @@ function handleGroupDeletion($pdo, $groupId) {
     $deleteGroupStmt = $pdo->prepare("DELETE FROM user_groups WHERE id = ?");
     $deleteGroupStmt->execute([$groupId]);
 
-    // Re-fetch groups to update the list after deletion
-    global $groupsStmt;
     $groupsStmt->execute();
     $GLOBALS['groups'] = $groupsStmt->fetchAll();
 
@@ -250,10 +256,9 @@ function groupHasSuperAdmin($pdo, $groupId) {
                         <td><?php echo htmlspecialchars($user['username']); ?></td>
                         <td><?php echo htmlspecialchars($user['role']); ?></td>
                         <td>
-                            <?php if ($user['role'] !== 'super_admin' || $isSuperAdmin): ?>
+                            <?php if ($isSuperAdmin || ($userRole === 'admin' && $user['role'] !== 'super_admin')): ?>
                             <form action="manage_users.php" method="post">
-                                <select name="timezone" onchange="this.form.submit()" <?php echo ($user['role'] === 'super_admin' && !$isSuperAdmin) ? 'disabled' : ''; ?
->>
+                                <select name="timezone">
                                     <?php foreach ($timezones as $tz => $name): ?>
                                     <option value="<?php echo $tz; ?>" <?php if ($user['timezone'] == $tz) echo 'selected'; ?>>
                                         <?php echo htmlspecialchars($name); ?>
@@ -262,6 +267,7 @@ function groupHasSuperAdmin($pdo, $groupId) {
                                 </select>
                                 <input type="hidden" name="action" value="update_timezone">
                                 <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                <button type="submit" class="btn">Update Timezone</button>
                             </form>
                             <?php else: ?>
                             <?php echo htmlspecialchars($user['timezone']); ?>
@@ -273,8 +279,8 @@ function groupHasSuperAdmin($pdo, $groupId) {
                             $userGroups = $membershipQuery->fetchAll();
                             foreach ($userGroups as $group) {
                                 echo htmlspecialchars($group['name']) . "<br>";
-                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role'] !== 'super_admin' && !groupHasSuperAd
-min($pdo, $group['id']))) {
+                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role'] !== 'super_admin' && !groupHasSuperAdm
+in($pdo, $group['id']))) {
                                     echo "<form action='manage_users.php' method='post'>
                                         <input type='hidden' name='action' value='remove_from_group'>
                                         <input type='hidden' name='user_id' value='{$user['id']}'>
