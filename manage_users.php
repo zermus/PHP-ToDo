@@ -19,8 +19,38 @@ $timezones = [
     "Europe/Moscow" => "Moscow, St. Petersburg, Volgograd",
 ];
 
+// Database connection
+$pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
+    exit();
+} elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
+    $rememberToken = $_COOKIE['rememberMe'];
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone FROM users WHERE remember_token = ?");
+    $userStmt->execute([$rememberToken]);
+    $userDetails = $userStmt->fetch();
+
+    if ($userDetails) {
+        $_SESSION['user_id'] = $userDetails['id'];
+    } else {
+        header('Location: login.php');
+        exit();
+    }
+}
+
+if (isset($_SESSION['user_id'])) {
+    $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
+    $userStmt->execute([$_SESSION['user_id']]);
+    $userDetails = $userStmt->fetch();
+}
+
+$userRole = $userDetails['role'];
+$isAdmin = $userRole === 'admin' || $userRole === 'super_admin';
+
+if (!$isAdmin) {
+    echo "Access denied. You must be an admin or super admin to view this page.";
     exit();
 }
 
@@ -28,29 +58,17 @@ $errorMessage = '';
 $successMessage = '';
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     $settingsStmt = $pdo->prepare("SELECT value FROM settings WHERE name = 'user_registration'");
     $settingsStmt->execute();
     $registrationEnabled = $settingsStmt->fetchColumn() === '1';
-
-    $userStmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-    $userStmt->execute([$_SESSION['user_id']]);
-    $userRole = $userStmt->fetchColumn();
-
-    if ($userRole !== 'admin' && $userRole !== 'super_admin') {
-        echo "Access denied. You must be an admin or super admin to view this page.";
-        exit();
-    }
 
     $usersStmt = $pdo->prepare("SELECT id, name, username, role, timezone FROM users");
     $usersStmt->execute();
     $users = $usersStmt->fetchAll();
 
     $isSuperAdmin = $userRole === 'super_admin';
-    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin
-')";
+    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.rol
+e = 'super_admin')";
     $groupsStmt = $pdo->prepare("SELECT id, name FROM user_groups $exclusionQuery");
     $groupsStmt->execute();
     $groups = $groupsStmt->fetchAll();
@@ -76,7 +94,8 @@ try {
                 break;
             case 'assign_user':
                 if (isset($_POST['user_id'], $_POST['group_id'])) {
-                    $assignStmt = $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE group_id = VALUES(group_id)");
+                    $assignStmt = $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE group_id = VALUES
+(group_id)");
                     $assignStmt->execute([$_POST['user_id'], $_POST['group_id']]);
                     $successMessage = "User assigned to group successfully.";
                 }
@@ -110,7 +129,7 @@ try {
         }
     }
 } catch (PDOException $e) {
-    die("Database error: " . $e->getMessage());
+    $errorMessage = "Database error: " . $e->getMessage();
 }
 
 function handleUserActions($pdo, $postData) {
@@ -169,7 +188,8 @@ function handleGroupDeletion($pdo, $groupId, $groupsStmt) {
 }
 
 function groupHasSuperAdmin($pdo, $groupId) {
-    $query = $pdo->prepare("SELECT COUNT(*) FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin' AND gm.group_id = ?");
+    $query = $pdo->prepare("SELECT COUNT(*) FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin' AND gm.group_id
+ = ?");
     $query->execute([$groupId]);
     return $query->fetchColumn() > 0;
 }
@@ -279,8 +299,8 @@ function groupHasSuperAdmin($pdo, $groupId) {
                             $userGroups = $membershipQuery->fetchAll();
                             foreach ($userGroups as $group) {
                                 echo htmlspecialchars($group['name']) . "<br>";
-                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role'] !== 'super_admin' && !groupHasSuperAdm
-in($pdo, $group['id']))) {
+                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role'] !== 'super_admin' && !
+groupHasSuperAdmin($pdo, $group['id']))) {
                                     echo "<form action='manage_users.php' method='post'>
                                         <input type='hidden' name='action' value='remove_from_group'>
                                         <input type='hidden' name='user_id' value='{$user['id']}'>
