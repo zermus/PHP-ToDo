@@ -2,17 +2,28 @@
 session_start();
 require 'config.php';
 
+// Database connection
+$pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
+} elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
+    $rememberToken = $_COOKIE['rememberMe'];
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone FROM users WHERE remember_token = ?");
+    $userStmt->execute([$rememberToken]);
+    $userDetails = $userStmt->fetch();
+
+    if ($userDetails) {
+        $_SESSION['user_id'] = $userDetails['id'];
+    } else {
+        header('Location: login.php');
+        exit();
+    }
 }
 
-$errorMessage = '';
-
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
+if (isset($_SESSION['user_id'])) {
     // Fetch groups the user is part of
     $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
     $groupStmt->execute([$_SESSION['user_id']]);
@@ -24,48 +35,48 @@ try {
         $userTimezoneResult = $userTimezoneQuery->fetch();
         $_SESSION['timezone'] = $userTimezoneResult['timezone'] ?? 'UTC';
     }
+}
 
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        $taskName = filter_input(INPUT_POST, 'taskName', FILTER_SANITIZE_STRING);
-        $taskDetails = filter_input(INPUT_POST, 'taskDetails', FILTER_SANITIZE_STRING);
-        $dueDate = filter_input(INPUT_POST, 'dueDate', FILTER_SANITIZE_STRING);
-        $dueTime = filter_input(INPUT_POST, 'dueTime', FILTER_SANITIZE_STRING);
-        $reminderPreference = filter_input(INPUT_POST, 'reminderPreference', FILTER_SANITIZE_STRING);
-        $isChecklist = isset($_POST['isChecklist']) ? 1 : 0;
-        $checklistItems = isset($_POST['checklist']) ? $_POST['checklist'] : [];
-        $groupId = !empty($_POST['group_id']) ? $_POST['group_id'] : null;
-        $receiveCompletionEmail = isset($_POST['receiveCompletionEmail']) ? 1 : 0; // New field
+$errorMessage = '';
 
-        if (empty($taskName)) {
-            $errorMessage = 'Please enter a task name.';
-        } else {
-            $userTimezone = new DateTimeZone($_SESSION['timezone']);
-            $dueDateTime = new DateTime("$dueDate $dueTime", $userTimezone);
-            $dueDateTime->setTimezone(new DateTimeZone('UTC'));
-            $reminderPreference = !empty($reminderPreference) ? $reminderPreference : NULL;
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $taskName = filter_input(INPUT_POST, 'taskName', FILTER_SANITIZE_STRING);
+    $taskDetails = filter_input(INPUT_POST, 'taskDetails', FILTER_SANITIZE_STRING);
+    $dueDate = filter_input(INPUT_POST, 'dueDate', FILTER_SANITIZE_STRING);
+    $dueTime = filter_input(INPUT_POST, 'dueTime', FILTER_SANITIZE_STRING);
+    $reminderPreference = filter_input(INPUT_POST, 'reminderPreference', FILTER_SANITIZE_STRING);
+    $isChecklist = isset($_POST['isChecklist']) ? 1 : 0;
+    $checklistItems = isset($_POST['checklist']) ? $_POST['checklist'] : [];
+    $groupId = !empty($_POST['group_id']) ? $_POST['group_id'] : null;
+    $receiveCompletionEmail = isset($_POST['receiveCompletionEmail']) ? 1 : 0;
 
-            // Insert task with potential group ID and completion email preference
-            $stmt = $pdo->prepare("INSERT INTO tasks (user_id, group_id, summary, due_date, reminder_preference, details, receive_completion_email) VALUES (?, ?, ?, ?, ?,
- ?, ?)");
-            $stmt->execute([$_SESSION['user_id'], $groupId, $taskName, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $taskDetails, $receiveCompletionEmail]);
+    if (empty($taskName)) {
+        $errorMessage = 'Please enter a task name.';
+    } else {
+        $userTimezone = new DateTimeZone($_SESSION['timezone']);
+        $dueDateTime = new DateTime("$dueDate $dueTime", $userTimezone);
+        $dueDateTime->setTimezone(new DateTimeZone('UTC'));
+        $reminderPreference = !empty($reminderPreference) ? $reminderPreference : NULL;
 
-            $taskId = $pdo->lastInsertId();
+        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, group_id, summary, due_date, reminder_preference, details, receive_completion_email) VALUES (?,
+ ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$_SESSION['user_id'], $groupId, $taskName, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $taskDetails, $receiveComplet
+ionEmail]);
 
-            if ($isChecklist) {
-                $checklistStmt = $pdo->prepare("INSERT INTO checklist_items (task_id, content) VALUES (?, ?)");
-                foreach ($checklistItems as $item) {
-                    if (!empty($item)) {
-                        $checklistStmt->execute([$taskId, $item]);
-                    }
+        $taskId = $pdo->lastInsertId();
+
+        if ($isChecklist) {
+            $checklistStmt = $pdo->prepare("INSERT INTO checklist_items (task_id, content) VALUES (?, ?)");
+            foreach ($checklistItems as $item) {
+                if (!empty($item)) {
+                    $checklistStmt->execute([$taskId, $item]);
                 }
             }
-
-            header('Location: main.php');
-            exit();
         }
+
+        header('Location: main.php');
+        exit();
     }
-} catch (PDOException $e) {
-    $errorMessage = "Database error: " . $e->getMessage();
 }
 ?>
 
