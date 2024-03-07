@@ -198,7 +198,9 @@ tr:nth-child(even) {
 }
 
 .calendar .date-box {
-    min-height: 90px; /* Minimum height for the content area of each day cell */
+    min-height: 100px; /* Minimum height before scrolling */
+    max-height: 150px; /* Maximum height before scrolling */
+    overflow-y: auto; /* Enable vertical scrolling within the day cell */
     display: flex;
     flex-direction: column; /* Stack content vertically */
 }
