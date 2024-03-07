@@ -1,62 +1,80 @@
 <?php
 session_start();
-
 require 'config.php';
+
+// Initialize PDO instance at the beginning
+$pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 // User Authentication
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
-}
+} elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
+    // Fetch user details using the remember token from the cookie
+    $rememberToken = $_COOKIE['rememberMe'];
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone FROM users WHERE remember_token = ?");
+    $userStmt->execute([$rememberToken]);
+    $userDetails = $userStmt->fetch();
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // Fetch User Details
+    if ($userDetails) {
+        // Set session variables if user is found
+        $_SESSION['user_id'] = $userDetails['id'];
+        $_SESSION['username'] = $userDetails['name']; // Assuming you want to store the name in the session
+        // Re-fetch user details to avoid issues if user details were not properly set in session
+        $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
+        $userStmt->execute([$_SESSION['user_id']]);
+        $userDetails = $userStmt->fetch();
+    } else {
+        // If no user found with the token, redirect to login
+        header('Location: login.php');
+        exit();
+    }
+} else {
+    // Fetch user details from the database using the session user_id
     $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
     $userStmt->execute([$_SESSION['user_id']]);
     $userDetails = $userStmt->fetch();
-    $userTimezone = new DateTimeZone($userDetails['timezone'] ?? 'UTC');
-    $isAdmin = $userDetails['role'] === 'admin' || $userDetails['role'] === 'super_admin';
+}
 
-    // Initialize an array to track task IDs assigned to groups
-    $groupTaskIds = [];
+$userTimezone = new DateTimeZone($userDetails['timezone'] ?? 'UTC');
+$isAdmin = $userDetails['role'] === 'admin' || $userDetails['role'] === 'super_admin';
 
-    // Fetch group tasks
-    $groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_groups g ON
- gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
-    $groupTasksStmt->execute([$_SESSION['user_id']]);
-    $groupTasks = $groupTasksStmt->fetchAll();
+// Initialize an array to track task IDs assigned to groups
+$groupTaskIds = [];
 
-    $groupTasksWithChecklist = [];
-    foreach ($groupTasks as $task) {
-        $checklistStmt = $pdo->prepare("SELECT * FROM checklist_items WHERE task_id = ?");
-        $checklistStmt->execute([$task['id']]);
-        $checklistItems = $checklistStmt->fetchAll();
-        $task['checklist_items'] = $checklistItems;
-        $groupTasksWithChecklist[$task['group_name']][] = $task;
-        $groupTaskIds[] = $task['id'];
-    }
+// Fetch group tasks
+$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user
+_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
+$groupTasksStmt->execute([$_SESSION['user_id']]);
+$groupTasks = $groupTasksStmt->fetchAll();
 
-    // Fetch personal tasks excluding those assigned to groups
-    $tasksWithChecklist = [];
-    $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
-    $query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date ASC";
-    $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
-    $taskStmt = $pdo->prepare($query);
-    $taskStmt->execute($params);
-    $personalTasks = $taskStmt->fetchAll();
+$groupTasksWithChecklist = [];
+foreach ($groupTasks as $task) {
+    $checklistStmt = $pdo->prepare("SELECT * FROM checklist_items WHERE task_id = ?");
+    $checklistStmt->execute([$task['id']]);
+    $checklistItems = $checklistStmt->fetchAll();
+    $task['checklist_items'] = $checklistItems;
+    $groupTasksWithChecklist[$task['group_name']][] = $task;
+    $groupTaskIds[] = $task['id'];
+}
 
-    foreach ($personalTasks as $task) {
-        $checklistStmt = $pdo->prepare("SELECT * FROM checklist_items WHERE task_id = ?");
-        $checklistStmt->execute([$task['id']]);
-        $checklistItems = $checklistStmt->fetchAll();
-        $task['checklist_items'] = $checklistItems;
-        $tasksWithChecklist[] = $task;
-    }
-} catch (PDOException $e) {
-    die("Error: " . $e->getMessage());
+// Fetch personal tasks excluding those assigned to groups
+$tasksWithChecklist = [];
+$placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
+$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_
+date ASC";
+$params = array_merge([$_SESSION['user_id']], $groupTaskIds);
+$taskStmt = $pdo->prepare($query);
+$taskStmt->execute($params);
+$personalTasks = $taskStmt->fetchAll();
+
+foreach ($personalTasks as $task) {
+    $checklistStmt = $pdo->prepare("SELECT * FROM checklist_items WHERE task_id = ?");
+    $checklistStmt->execute([$task['id']]);
+    $checklistItems = $checklistStmt->fetchAll();
+    $task['checklist_items'] = $checklistItems;
+    $tasksWithChecklist[] = $task;
 }
 
 if (isset($_GET['logout'])) {
@@ -113,8 +131,8 @@ if (isset($_GET['logout'])) {
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)"
->
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $
+task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                     <?php if (!empty($task['checklist_items'])): ?>
@@ -122,7 +140,8 @@ if (isset($_GET['logout'])) {
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task
+['id']; ?>">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -163,8 +182,8 @@ if (isset($_GET['logout'])) {
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)"
->
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $
+task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                 </li>
