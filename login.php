@@ -2,15 +2,32 @@
 // Start the session
 session_start();
 
-// Redirect to main.php if already logged in
-if (isset($_SESSION['user_id']) || isset($_COOKIE['rememberMe'])) {
-    header('Location: main.php');
-    exit();
-}
-
 require 'config.php';
 
 $message = '';
+
+// Check if the user is logged in via session or rememberMe cookie
+if (isset($_SESSION['user_id'])) {
+    header('Location: main.php');
+    exit();
+} elseif (isset($_COOKIE['rememberMe'])) {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Validate rememberMe cookie against the database including email verification check
+    $rememberToken = $_COOKIE['rememberMe'];
+    $userStmt = $pdo->prepare("SELECT id, username FROM users WHERE remember_token = ? AND email_verified = TRUE");
+    $userStmt->execute([$rememberToken]);
+    $userDetails = $userStmt->fetch();
+
+    if ($userDetails) {
+        // Set session variables and redirect to main.php
+        $_SESSION['user_id'] = $userDetails['id'];
+        $_SESSION['username'] = $userDetails['username'];
+        header('Location: main.php');
+        exit();
+    }
+}
 
 // CSRF token generation
 if (empty($_SESSION['csrf_token'])) {
@@ -26,15 +43,17 @@ if (isset($_POST['login'])) {
         $password = $_POST['password'];
         $rememberMe = isset($_POST['rememberMe']);
 
-        try {
-            $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
-            $stmt->execute([$username]);
-            $user = $stmt->fetch();
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
 
-            if ($user && password_verify($password, $user['password'])) {
+        if ($user && password_verify($password, $user['password'])) {
+            if (!$user['email_verified']) {
+                $message = "Please verify your email address before logging in.";
+            } else {
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
 
@@ -49,12 +68,9 @@ if (isset($_POST['login'])) {
 
                 header("Location: main.php");
                 exit();
-            } else {
-                $message = "Invalid username or password.";
             }
-        } catch (PDOException $e) {
-            // Generic error message
-            $message = "An error occurred. Please try again.";
+        } else {
+            $message = "Invalid username or password.";
         }
     }
 }
@@ -82,11 +98,9 @@ if (isset($_POST['login'])) {
             <button type="submit" name="login">Login</button>
         </form>
         <div class="forgot-password">
-            <!-- Update forgot password link -->
             <a href="forgot_password.php" class="btn">Forgot Password?</a>
         </div>
         <div class="register">
-            <!-- Register button -->
             <a href="register.php" class="btn">Register</a>
         </div>
         <?php if ($message): ?>
