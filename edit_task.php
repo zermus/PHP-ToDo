@@ -2,17 +2,36 @@
 session_start();
 require 'config.php';
 
+// Database connection function
+function connectToDatabase($host, $dbname, $db_username, $db_password) {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    return $pdo;
+}
+
+// Call this function to establish a database connection
+$pdo = connectToDatabase($host, $dbname, $db_username, $db_password);
+
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
+} elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
+    $rememberToken = $_COOKIE['rememberMe'];
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone FROM users WHERE remember_token = ?");
+    $userStmt->execute([$rememberToken]);
+    $userDetails = $userStmt->fetch();
+
+    if ($userDetails) {
+        $_SESSION['user_id'] = $userDetails['id'];
+    } else {
+        header('Location: login.php');
+        exit();
+    }
 }
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$errorMessage = '';
 
-    $errorMessage = '';
-
+if (isset($_SESSION['user_id'])) {
     // Fetch groups the user is part of
     $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
     $groupStmt->execute([$_SESSION['user_id']]);
@@ -38,7 +57,8 @@ try {
         $authQuery->execute([$taskId]);
         $taskInfo = $authQuery->fetch();
 
-        $authorized = ($taskInfo['user_id'] == $_SESSION['user_id']) || ($taskInfo['group_id'] && inGroup($pdo, $_SESSION['user_id'], $taskInfo['group_id']));
+        $authorized = ($taskInfo['user_id'] == $_SESSION['user_id']) || ($taskInfo['group_id'] && inGroup($pdo, $_SESSION['user_id'], $taskInfo['group_id'
+]));
         if (!$authorized) {
             $errorMessage = "You do not have permission to edit this task.";
         } else {
@@ -65,49 +85,48 @@ try {
         $errorMessage = 'Task ID not provided.';
     }
 
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && $authorized) {
-        $taskName = filter_input(INPUT_POST, 'taskName', FILTER_SANITIZE_STRING);
-        $taskDetails = filter_input(INPUT_POST, 'taskDetails', FILTER_SANITIZE_STRING);
-        $dueDate = filter_input(INPUT_POST, 'dueDate', FILTER_SANITIZE_STRING);
-        $dueTime = filter_input(INPUT_POST, 'dueTime', FILTER_SANITIZE_STRING);
-        $reminderPreference = filter_input(INPUT_POST, 'reminderPreference', FILTER_SANITIZE_STRING);
-        $isChecklist = isset($_POST['isChecklist']) ? 1 : 0;
-        $checklistItems = isset($_POST['checklist']) ? $_POST['checklist'] : [];
-        $completed = isset($_POST['completed']) ? 1 : 0;
-        $groupId = !empty($_POST['group_id']) ? $_POST['group_id'] : null;
-        $receiveCompletionEmail = isset($_POST['receiveCompletionEmail']) ? 1 : 0;
+    try {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && $authorized) {
+            $taskName = filter_input(INPUT_POST, 'taskName', FILTER_SANITIZE_STRING);
+            $taskDetails = filter_input(INPUT_POST, 'taskDetails', FILTER_SANITIZE_STRING);
+            $dueDate = filter_input(INPUT_POST, 'dueDate', FILTER_SANITIZE_STRING);
+            $dueTime = filter_input(INPUT_POST, 'dueTime', FILTER_SANITIZE_STRING);
+            $reminderPreference = filter_input(INPUT_POST, 'reminderPreference', FILTER_SANITIZE_STRING);
+            $isChecklist = isset($_POST['isChecklist']) ? 1 : 0;
+            $checklistItems = isset($_POST['checklist']) ? $_POST['checklist'] : [];
+            $completed = isset($_POST['completed']) ? 1 : 0;
+            $groupId = !empty($_POST['group_id']) ? $_POST['group_id'] : null;
+            $receiveCompletionEmail = isset($_POST['receiveCompletionEmail']) ? 1 : 0;
 
-        $validReminderPreferences = ['15m', '30m', '1h', '2h', '4h', '12h', '24h'];
-        if (!in_array($reminderPreference, $validReminderPreferences)) {
-            $reminderPreference = NULL;
-        }
+            $validReminderPreferences = ['15m', '30m', '1h', '2h', '4h', '12h', '24h'];
+            if (!in_array($reminderPreference, $validReminderPreferences)) {
+                $reminderPreference = NULL;
+            }
 
-        $dueDateTime = new DateTime($dueDate . ' ' . $dueTime, $userTimezone);
-        $dueDateTime->setTimezone(new DateTimeZone('UTC'));
+            $dueDateTime = new DateTime($dueDate . ' ' . $dueTime, $userTimezone);
+            $dueDateTime->setTimezone(new DateTimeZone('UTC'));
 
-        // Reset reminder sent status if due date or time changes
-        $resetReminder = ($dueDate !== $localDueDate || $dueTime !== $localDueTime) ? 1 : 0;
+            $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?, completed = ?, details = ?, re
+ceive_completion_email = ?, reminder_sent = ? WHERE id = ?");
+            $updateStmt->execute([$taskName, $groupId, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDetails, $receiveComplet
+ionEmail, ($dueDate !== $localDueDate || $dueTime !== $localDueTime) ? 0 : $task['reminder_sent'], $taskId]);
 
-        $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?, completed = ?, details = ?, receive_completion_ema
-il = ?, completion_email_sent = ?, reminder_sent = ?, last_notification_sent = ? WHERE id = ?");
-        $updateStmt->execute([$taskName, $groupId, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDetails, $receiveCompletionEmail, $completed
- ? 0 : null, $resetReminder ? 0 : $task['reminder_sent'], $resetReminder ? NULL : $task['last_notification_sent'], $taskId]);
-
-        $pdo->exec("DELETE FROM checklist_items WHERE task_id = $taskId");
-        if ($isChecklist) {
-            $insertStmt = $pdo->prepare("INSERT INTO checklist_items (task_id, content) VALUES (?, ?)");
-            foreach ($checklistItems as $item) {
-                if (!empty($item)) {
-                    $insertStmt->execute([$taskId, $item]);
+            if ($isChecklist) {
+                $pdo->exec("DELETE FROM checklist_items WHERE task_id = $taskId");
+                $insertStmt = $pdo->prepare("INSERT INTO checklist_items (task_id, content) VALUES (?, ?)");
+                foreach ($checklistItems as $item) {
+                    if (!empty($item)) {
+                        $insertStmt->execute([$taskId, $item]);
+                    }
                 }
             }
-        }
 
-        header('Location: main.php');
-        exit();
+            header('Location: main.php');
+            exit();
+        }
+    } catch (PDOException $e) {
+        $errorMessage = "Database error: " . $e->getMessage();
     }
-} catch (PDOException $e) {
-    $errorMessage = "Database error: " . $e->getMessage();
 }
 
 function inGroup($pdo, $userId, $groupId) {
@@ -197,8 +216,8 @@ function inGroup($pdo, $userId, $groupId) {
                 <select id="group_id" name="group_id">
                     <option value="">None</option>
                     <?php foreach ($groups as $group): ?>
-                    <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>><?php echo htmlspecialchars($group['n
-ame']); ?></option>
+                    <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>><?php echo htmlspecia
+lchars($group['name']); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
