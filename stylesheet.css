@@ -156,7 +156,7 @@ tr:nth-child(even) {
     background-color: #222831;
     padding: 30px;
     border-radius: 8px;
-    max-width: 1050px;
+    max-width: 1200px;
     margin: 20px auto;
     box-sizing: border-box;
     text-align: center;
@@ -198,8 +198,8 @@ tr:nth-child(even) {
 }
 
 .calendar .date-box {
-    min-height: 100px; /* Minimum height before scrolling */
-    max-height: 150px; /* Maximum height before scrolling */
+    min-height: 125px; /* Minimum height before scrolling */
+    max-height: 200px; /* Maximum height before scrolling */
     overflow-y: auto; /* Enable vertical scrolling within the day cell */
     display: flex;
     flex-direction: column; /* Stack content vertically */
