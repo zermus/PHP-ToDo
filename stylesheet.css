@@ -216,6 +216,10 @@ tr:nth-child(even) {
     margin-bottom: 10px; /* Space between the date number and first task */
 }
 
+.date.current-day {
+    background-color: #0047ab; /* Only changing the background-color here */
+}
+
 .calendar .task {
     padding: 5px;
     margin-top: 20px; /* Space from the top for the date number */
