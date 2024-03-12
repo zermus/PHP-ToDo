@@ -110,6 +110,7 @@ month">Next</button>
                 <tbody>
                     <?php
                     $currentDate = clone $startDayOfWeek;
+                    $nowInUserTimezone = new DateTime('now', $userTimezone); // Get the current time in user's timezone
                     while ($currentDate <= $endDayOfWeek) {
                         if ($currentDate > $lastDayOfMonth && $currentDate->format('w') == 0) {
                             break;
@@ -119,7 +120,7 @@ month">Next</button>
                             echo "<td>";
                             echo "<div class='date-box'>";
                             if ($currentDate >= $firstDayOfMonth && $currentDate <= $lastDayOfMonth) {
-                                $isToday = $currentDate->format('Y-m-d') === date('Y-m-d');
+                                $isToday = $currentDate->format('Y-m-d') === $nowInUserTimezone->format('Y-m-d');
                                 $class = 'date' . ($isToday ? ' current-day' : '');
                                 echo "<div class='{$class}'>" . $currentDate->format('j') . "</div>";
                                 foreach ($tasks as $task) {
