@@ -88,11 +88,11 @@ $nextYear = date('Y', strtotime('+1 month', strtotime("$currentYear-$currentMont
     <div class="calendar-container">
         <h1>Calendar</h1>
         <div class="month-navigation">
-            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn pr
-evious-month">Previous</button>
+            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-b
+tn previous-month">Previous</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
-            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month
-">Next</button>
+            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-
+month">Next</button>
         </div>
         <div class="calendar">
             <table>
@@ -119,7 +119,9 @@ evious-month">Previous</button>
                             echo "<td>";
                             echo "<div class='date-box'>";
                             if ($currentDate >= $firstDayOfMonth && $currentDate <= $lastDayOfMonth) {
-                                echo "<div class='date'>" . $currentDate->format('j') . "</div>";
+                                $isToday = $currentDate->format('Y-m-d') === date('Y-m-d');
+                                $class = 'date' . ($isToday ? ' current-day' : '');
+                                echo "<div class='{$class}'>" . $currentDate->format('j') . "</div>";
                                 foreach ($tasks as $task) {
                                     $dueDate = new DateTime($task['due_date'], new DateTimeZone('UTC'));
                                     $dueDate->setTimezone($userTimezone);
@@ -136,8 +138,8 @@ evious-month">Previous</button>
                                                 $taskClass = 'task-today';
                                             }
                                         }
-                                        echo "<div class='task $taskClass'><a href='edit_task.php?id=" . $task['id'] . "' class='task-name'>" . htmlspecia
-lchars($task['summary']) . "</a></div>";
+                                        echo "<div class='task {$taskClass}'><a href='edit_task.php?id={$task['id']}' class='task-name'>" . htmlspeci
+alchars($task['summary']) . "</a></div>";
                                     }
                                 }
                             }
