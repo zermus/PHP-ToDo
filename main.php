@@ -44,8 +44,8 @@ $isAdmin = $userDetails['role'] === 'admin' || $userDetails['role'] === 'super_a
 $groupTaskIds = [];
 
 // Fetch group tasks
-$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user
-_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
+$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_
+id INNER JOIN user_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
 $groupTasksStmt->execute([$_SESSION['user_id']]);
 $groupTasks = $groupTasksStmt->fetchAll();
 
@@ -62,8 +62,8 @@ foreach ($groupTasks as $task) {
 // Fetch personal tasks excluding those assigned to groups
 $tasksWithChecklist = [];
 $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
-$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_
-date ASC";
+$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : ""
+) . "ORDER BY due_date ASC";
 $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
 $taskStmt = $pdo->prepare($query);
 $taskStmt->execute($params);
@@ -99,6 +99,7 @@ if (isset($_GET['logout'])) {
         <h1>Welcome, <?php echo htmlspecialchars($userDetails['name']); ?>!</h1>
         <div class="button-container">
             <a href="create_task.php" class="btn new-task">Create New Task</a>
+            <a href="user_settings.php" class="btn">User Settings</a>
             <?php if ($isAdmin): ?>
             <a href="manage_users.php" class="btn manage-users">Manage Users</a>
             <?php endif; ?>
@@ -131,8 +132,8 @@ if (isset($_GET['logout'])) {
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $
-task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(
+this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                     <?php if (!empty($task['checklist_items'])): ?>
@@ -140,8 +141,8 @@ task['id']; ?>)">
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task
-['id']; ?>">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id
+="<?php echo $task['id']; ?>">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -182,8 +183,8 @@ task['id']; ?>)">
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $
-task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(
+this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                 </li>
