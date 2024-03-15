@@ -10,7 +10,8 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 if (isset($_GET['token'])) {
     $token = $_GET['token'];
 
-    $stmt = $pdo->prepare("SELECT id, new_email, new_email_token, new_email_token_expiry FROM users WHERE new_email_token = ?");
+    $stmt = $pdo->prepare("SELECT id, new_email, new_email_token, new_email_token_expiry FROM users WHERE new_email_tok
+en = ?");
     $stmt->execute([$token]);
     $user = $stmt->fetch();
 
@@ -24,13 +25,14 @@ if (isset($_GET['token'])) {
             $verificationLink = $base_url . "verify_new_email.php?token=" . $newVerificationToken;
 
             // Update the user with the new email verification token
-            $updateStmt = $pdo->prepare("UPDATE users SET new_email_verified = 0, verification_token = ? WHERE id = ?");
+            $updateStmt = $pdo->prepare("UPDATE users SET new_email_verified = 0, verification_token = ? WHERE id = ?")
+;
             $updateStmt->execute([$newVerificationToken, $user['id']]);
 
             // Send verification email to the new email address
             $subject = "Verify Your New Email Address";
-            $emailMessage = "Hello,\n\nPlease click the following link to verify your new email address:\n$verificationLink\n\nThank you
-!";
+            $emailMessage = "Hello,\n\nPlease click the following link to verify your new email address:\n$verification
+Link\n\nThank you!";
             $headers = "From: " . $from_email;
             mail($user['new_email'], $subject, $emailMessage, $headers);
 
@@ -40,8 +42,8 @@ if (isset($_GET['token'])) {
             session_destroy();
             setcookie('rememberMe', '', time() - 3600, '/');
 
-            $message = "Your email address has been successfully updated. You have been logged out. Please log in with your new email ad
-dress.";
+            $message = "Your email address update has been confirmed. You will now be logged out. Please confirm your n
+ew email address to log back in.";
             $messageClass = 'success';
 
             // Redirect to login page after 10 seconds
