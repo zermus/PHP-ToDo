@@ -11,18 +11,19 @@ if (isset($_GET['token'])) {
     $token = $_GET['token'];
 
     // Retrieve the user based on the verification token
-    $stmt = $pdo->prepare("SELECT id, new_email FROM users WHERE verification_token = ? AND new_email_verified = FALSE");
+    $stmt = $pdo->prepare("SELECT id, new_email FROM users WHERE verification_token = ? AND new_email_verified = FALSE"
+);
     $stmt->execute([$token]);
     $user = $stmt->fetch();
 
     if ($user) {
         // Update the user's email to the new email and clear the verification fields
-        $updateStmt = $pdo->prepare("UPDATE users SET email = ?, email_verified = TRUE, new_email = NULL, verification_token = NULL, new
-_email_token = NULL, new_email_token_expiry = NULL WHERE id = ?");
+        $updateStmt = $pdo->prepare("UPDATE users SET email = ?, email_verified = TRUE, new_email = NULL, verification_
+token = NULL, new_email_token = NULL, new_email_token_expiry = NULL WHERE id = ?");
         $updateStmt->execute([$user['new_email'], $user['id']]);
 
-        $message = "Your new email address has been successfully verified. You may now log in with your new email address. You will be r
-edirected to the login page.";
+        $message = "Your new email address has been successfully verified. You may now log in. You will be redirected t
+o the login page.";
         $messageClass = 'success';
 
         // Redirect to login page after 10 seconds
