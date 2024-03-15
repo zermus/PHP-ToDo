@@ -30,7 +30,7 @@ if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     }
 } else {
     $userId = $_SESSION['user_id'];
-    $userStmt = $pdo->prepare("SELECT email, timezone, password FROM users WHERE id = ?");
+    $userStmt = $pdo->prepare("SELECT email, timezone, password, new_email_token FROM users WHERE id = ?");
     $userStmt->execute([$userId]);
     $userDetails = $userStmt->fetch();
 }
@@ -46,8 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $updateTimezoneStmt = $pdo->prepare("UPDATE users SET timezone = ? WHERE id = ?");
         $updateTimezoneStmt->execute([$newTimezone, $userId]);
         $successMessage = "Timezone updated successfully.";
-        header('Location: main.php');
-        exit();
     }
 
     // Update Email
@@ -56,27 +54,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $verificationToken = bin2hex(random_bytes(16));
             $tokenExpiry = (new DateTime())->add(new DateInterval('P1D'))->format('Y-m-d H:i:s');
 
-            // Check if a token already exists and notify the user
-            if (!is_null($userDetails['new_email_token'])) {
-                $message = "Previous email update request was overwritten.";
+            if (!empty($userDetails['new_email_token'])) {
+                $message = "Previous email update request was overwritten. ";
             }
 
-            // Prepare and send the confirmation email
             $subject = "Confirm Your Email Change";
-            $emailMessage = "Hello,\n\nPlease click the following link to confirm your email change:\n" . $base_url . "confirm_email_cha
-nge.php?token=$verificationToken\n\nThank you!";
+            $emailMessage = "Hello,\n\nYou have requested to change your email address to $newEmail.\n\nPlease click th
+e following link to confirm your email change:\n" . $base_url . "confirm_email_change.php?token=$verificationToken\n\nT
+hank you!";
             $headers = "From: " . $from_email;
             mail($userDetails['email'], $subject, $emailMessage, $headers);
 
-            // Update user's record with the new email, token, and token expiry
-            $updateUserStmt = $pdo->prepare("UPDATE users SET new_email = ?, new_email_token = ?, new_email_token_expiry = ? WHERE id =
-?");
+            $updateUserStmt = $pdo->prepare("UPDATE users SET new_email = ?, new_email_token = ?, new_email_token_expir
+y = ? WHERE id = ?");
             $updateUserStmt->execute([$newEmail, $verificationToken, $tokenExpiry, $userId]);
 
-            $_SESSION['email_update_message'] = "A confirmation email has been sent to your current email address. Please confirm the ch
-ange to update your email.";
-            header('Location: logout.php');
-            exit();
+            $successMessage .= "A confirmation email has been sent to your current email address ($userDetails[email]).
+ Please confirm the change to update your email to $newEmail.";
         } else {
             $message = "Invalid email format.";
         }
@@ -89,12 +83,12 @@ ange to update your email.";
                 $newPasswordHash = password_hash($newPassword, PASSWORD_DEFAULT);
                 $updatePasswordStmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
                 $updatePasswordStmt->execute([$newPasswordHash, $userId]);
-                $successMessage = "Password updated successfully.";
+                $successMessage .= " Password updated successfully.";
             } else {
-                $message .= "New password does not meet the requirements.";
+                $message .= " New password does not meet the requirements.";
             }
         } else {
-            $message .= "Current password is incorrect.";
+            $message .= " Current password is incorrect.";
         }
     }
 }
@@ -160,39 +154,40 @@ ange to update your email.";
         <h2>User Settings</h2>
         <form method="post">
             <label for="email">Email:</label>
-            <input type="email" name="email" id="email" placeholder="Email" value="<?php echo htmlspecialchars($userDetails['email']); ?
->">
+            <input type="email" name="email" id="email" placeholder="Email" value="<?php echo htmlspecialchars($userDet
+ails['email']); ?>">
 
             <label for="timezone">Timezone:</label>
             <select name="timezone" id="timezone">
                 <!-- Timezone options from register.php -->
-                <option value="America/New_York" <?php echo $userDetails['timezone'] == 'America/New_York' ? 'selected' : ''; ?>>Eastern
- Time (US & Canada)</option>
-                <option value="America/Chicago" <?php echo $userDetails['timezone'] == 'America/Chicago' ? 'selected' : ''; ?>>Central T
-ime (US & Canada)</option>
-                <option value="America/Denver" <?php echo $userDetails['timezone'] == 'America/Denver' ? 'selected' : ''; ?>>Mountain Ti
-me (US & Canada)</option>
-                <option value="America/Los_Angeles" <?php echo $userDetails['timezone'] == 'America/Los_Angeles' ? 'selected' : ''; ?>>P
-acific Time (US & Canada)</option>
-                <option value="America/Anchorage" <?php echo $userDetails['timezone'] == 'America/Anchorage' ? 'selected' : ''; ?>>Alask
-a</option>
-                <option value="America/Halifax" <?php echo $userDetails['timezone'] == 'America/Halifax' ? 'selected' : ''; ?>>Atlantic
-Time (Canada)</option>
-                <option value="America/Buenos_Aires" <?php echo $userDetails['timezone'] == 'America/Buenos_Aires' ? 'selected' : ''; ?>
->Buenos Aires</option>
-                <option value="America/Sao_Paulo" <?php echo $userDetails['timezone'] == 'America/Sao_Paulo' ? 'selected' : ''; ?>>Sao P
-aulo</option>
-                <option value="America/Lima" <?php echo $userDetails['timezone'] == 'America/Lima' ? 'selected' : ''; ?>>Lima</option>
-                <option value="Pacific/Honolulu" <?php echo $userDetails['timezone'] == 'Pacific/Honolulu' ? 'selected' : ''; ?>>Hawaii<
-/option>
-                <option value="Europe/London" <?php echo $userDetails['timezone'] == 'Europe/London' ? 'selected' : ''; ?>>London</optio
-n>
-                <option value="Europe/Berlin" <?php echo $userDetails['timezone'] == 'Europe/Berlin' ? 'selected' : ''; ?>>Berlin, Frank
-furt, Paris, Rome, Madrid</option>
-                <option value="Europe/Athens" <?php echo $userDetails['timezone'] == 'Europe/Athens' ? 'selected' : ''; ?>>Athens, Istan
-bul, Minsk</option>
-                <option value="Europe/Moscow" <?php echo $userDetails['timezone'] == 'Europe/Moscow' ? 'selected' : ''; ?>>Moscow, St. P
-etersburg, Volgograd</option>
+                <option value="America/New_York" <?php echo $userDetails['timezone'] == 'America/New_York' ? 'selected'
+ : ''; ?>>Eastern Time (US & Canada)</option>
+                <option value="America/Chicago" <?php echo $userDetails['timezone'] == 'America/Chicago' ? 'selected' :
+ ''; ?>>Central Time (US & Canada)</option>
+                <option value="America/Denver" <?php echo $userDetails['timezone'] == 'America/Denver' ? 'selected' : '
+'; ?>>Mountain Time (US & Canada)</option>
+                <option value="America/Los_Angeles" <?php echo $userDetails['timezone'] == 'America/Los_Angeles' ? 'sel
+ected' : ''; ?>>Pacific Time (US & Canada)</option>
+                <option value="America/Anchorage" <?php echo $userDetails['timezone'] == 'America/Anchorage' ? 'selecte
+d' : ''; ?>>Alaska</option>
+                <option value="America/Halifax" <?php echo $userDetails['timezone'] == 'America/Halifax' ? 'selected' :
+ ''; ?>>Atlantic Time (Canada)</option>
+                <option value="America/Buenos_Aires" <?php echo $userDetails['timezone'] == 'America/Buenos_Aires' ? 's
+elected' : ''; ?>>Buenos Aires</option>
+                <option value="America/Sao_Paulo" <?php echo $userDetails['timezone'] == 'America/Sao_Paulo' ? 'selecte
+d' : ''; ?>>Sao Paulo</option>
+                <option value="America/Lima" <?php echo $userDetails['timezone'] == 'America/Lima' ? 'selected' : ''; ?
+>>Lima</option>
+                <option value="Pacific/Honolulu" <?php echo $userDetails['timezone'] == 'Pacific/Honolulu' ? 'selected'
+ : ''; ?>>Hawaii</option>
+                <option value="Europe/London" <?php echo $userDetails['timezone'] == 'Europe/London' ? 'selected' : '';
+ ?>>London</option>
+                <option value="Europe/Berlin" <?php echo $userDetails['timezone'] == 'Europe/Berlin' ? 'selected' : '';
+ ?>>Berlin, Frankfurt, Paris, Rome, Madrid</option>
+                <option value="Europe/Athens" <?php echo $userDetails['timezone'] == 'Europe/Athens' ? 'selected' : '';
+ ?>>Athens, Istanbul, Minsk</option>
+                <option value="Europe/Moscow" <?php echo $userDetails['timezone'] == 'Europe/Moscow' ? 'selected' : '';
+ ?>>Moscow, St. Petersburg, Volgograd</option>
             </select>
 
             <label for="currentPassword">Current Password (for password change only):</label>
