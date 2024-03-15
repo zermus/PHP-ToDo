@@ -65,7 +65,11 @@ button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover
 }
 
 .success {
-    color: #00FF00;
+    color: #00FF00; /* Green for success */
+}
+
+.error {
+    color: #FF6347; /* Tomato red for errors */
 }
 
 /* Task Urgency */
