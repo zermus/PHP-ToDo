@@ -10,7 +10,8 @@ if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     exit();
 } elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
     $rememberToken = $_COOKIE['rememberMe'];
-    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token = ?");
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token =
+ ?");
     $userStmt->execute([$rememberToken]);
     $userDetails = $userStmt->fetch();
     if ($userDetails) {
@@ -36,8 +37,8 @@ $urgencyGreen = $userDetails['urgency_green'];
 $urgencyCritical = $userDetails['urgency_critical'];
 
 $groupTaskIds = [];
-$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date AS
-C");
+$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm
+.group_id INNER JOIN user_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
 $groupTasksStmt->execute([$_SESSION['user_id']]);
 $groupTasks = $groupTasksStmt->fetchAll();
 
@@ -53,7 +54,8 @@ foreach ($groupTasks as $task) {
 
 $tasksWithChecklist = [];
 $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
-$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date ASC";
+$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders)
+ " : "") . "ORDER BY due_date ASC";
 $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
 $taskStmt = $pdo->prepare($query);
 $taskStmt->execute($params);
@@ -126,7 +128,8 @@ if (isset($_GET['logout'])) {
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskComp
+letion(this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                     <?php if (!empty($task['checklist_items'])): ?>
@@ -134,8 +137,9 @@ if (isset($_GET['logout'])) {
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>, <?php echo $ta
-sk['id']; ?>)">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-
+task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>, <?php echo $task['i
+d']; ?>)">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -180,9 +184,24 @@ sk['id']; ?>)">
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskComp
+letion(this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
+                    <?php if (!empty($task['checklist_items'])): ?>
+                    <ul>
+                        <?php foreach ($task['checklist_items'] as $item): ?>
+                        <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
+                            <?php echo htmlspecialchars($item['content']); ?>
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-
+task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>, <?php echo $task['i
+d']; ?>)">
+                                <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
+                            </button>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
                 </li>
                 <?php endforeach; ?>
             </ul>
