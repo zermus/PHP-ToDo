@@ -2,50 +2,42 @@
 session_start();
 require 'config.php';
 
-// Initialize PDO instance at the beginning
 $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// User Authentication
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
 } elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
-    // Fetch user details using the remember token from the cookie
     $rememberToken = $_COOKIE['rememberMe'];
-    $userStmt = $pdo->prepare("SELECT id, name, role, timezone FROM users WHERE remember_token = ?");
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token = ?");
     $userStmt->execute([$rememberToken]);
     $userDetails = $userStmt->fetch();
-
     if ($userDetails) {
-        // Set session variables if user is found
         $_SESSION['user_id'] = $userDetails['id'];
-        $_SESSION['username'] = $userDetails['name']; // Assuming you want to store the name in the session
-        // Re-fetch user details to avoid issues if user details were not properly set in session
-        $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
-        $userStmt->execute([$_SESSION['user_id']]);
-        $userDetails = $userStmt->fetch();
+        $_SESSION['username'] = $userDetails['name'];
+        $_SESSION['timezone'] = $userDetails['timezone'];
+        $_SESSION['urgency_green'] = $userDetails['urgency_green'];
+        $_SESSION['urgency_critical'] = $userDetails['urgency_critical'];
     } else {
-        // If no user found with the token, redirect to login
         header('Location: login.php');
         exit();
     }
 } else {
-    // Fetch user details from the database using the session user_id
-    $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
-    $userStmt->execute([$_SESSION['user_id']]);
+    $userId = $_SESSION['user_id'];
+    $userStmt = $pdo->prepare("SELECT name, role, timezone, urgency_green, urgency_critical FROM users WHERE id = ?");
+    $userStmt->execute([$userId]);
     $userDetails = $userStmt->fetch();
 }
 
 $userTimezone = new DateTimeZone($userDetails['timezone'] ?? 'UTC');
 $isAdmin = $userDetails['role'] === 'admin' || $userDetails['role'] === 'super_admin';
+$urgencyGreen = $userDetails['urgency_green'];
+$urgencyCritical = $userDetails['urgency_critical'];
 
-// Initialize an array to track task IDs assigned to groups
 $groupTaskIds = [];
-
-// Fetch group tasks
-$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_
-id INNER JOIN user_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
+$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.group_id INNER JOIN user_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date AS
+C");
 $groupTasksStmt->execute([$_SESSION['user_id']]);
 $groupTasks = $groupTasksStmt->fetchAll();
 
@@ -59,11 +51,9 @@ foreach ($groupTasks as $task) {
     $groupTaskIds[] = $task['id'];
 }
 
-// Fetch personal tasks excluding those assigned to groups
 $tasksWithChecklist = [];
 $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
-$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : ""
-) . "ORDER BY due_date ASC";
+$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders) " : "") . "ORDER BY due_date ASC";
 $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
 $taskStmt = $pdo->prepare($query);
 $taskStmt->execute($params);
@@ -118,22 +108,25 @@ if (isset($_GET['logout'])) {
                     $dueDateTime->setTimezone($userTimezone);
                     $now = new DateTime("now", $userTimezone);
                     $interval = $now->diff($dueDateTime);
-                    $taskClass = $task['completed'] ? 'task-item completed' : 'task-item';
-                    if ($interval->invert == 1) {
+                    $minutesToDue = (int)$interval->days * 1440 + (int)$interval->h * 60 + (int)$interval->i;
+                    $taskClass = 'task-item';
+
+                    if ($task['completed']) {
+                        $taskClass .= ' task-completed';
+                    } elseif ($interval->invert) {
                         $taskClass .= ' task-past-due';
-                    } elseif ($interval->days == 0 && $interval->h < 3) {
-                        $taskClass .= ' task-soon';
-                    } elseif ($interval->days == 0) {
-                        $taskClass .= ' task-today';
+                    } elseif ($minutesToDue <= $urgencyCritical) {
+                        $taskClass .= ' task-urgency-critical';
+                    } elseif ($minutesToDue <= $urgencyGreen) {
+                        $taskClass .= ' task-urgency-soon';
                     } else {
-                        $taskClass .= ' task-item-green';
+                        $taskClass .= ' task-urgency-green';
                     }
                 ?>
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(
-this, <?php echo $task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                     <?php if (!empty($task['checklist_items'])): ?>
@@ -141,8 +134,8 @@ this, <?php echo $task['id']; ?>)">
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id
-="<?php echo $task['id']; ?>">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>, <?php echo $ta
+sk['id']; ?>)">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -167,24 +160,27 @@ this, <?php echo $task['id']; ?>)">
                 <?php
                     $dueDateTime = new DateTime($task['due_date'], new DateTimeZone('UTC'));
                     $dueDateTime->setTimezone($userTimezone);
-                    $taskClass = $task['completed'] ? 'task-item completed' : 'task-item';
                     $now = new DateTime("now", $userTimezone);
                     $interval = $now->diff($dueDateTime);
-                    if ($interval->invert == 1) {
+                    $minutesToDue = (int)$interval->days * 1440 + (int)$interval->h * 60 + (int)$interval->i;
+                    $taskClass = 'task-item';
+
+                    if ($task['completed']) {
+                        $taskClass .= ' task-completed';
+                    } elseif ($interval->invert) {
                         $taskClass .= ' task-past-due';
-                    } elseif ($interval->days == 0 && $interval->h < 3) {
-                        $taskClass .= ' task-soon';
-                    } elseif ($interval->days == 0) {
-                        $taskClass .= ' task-today';
+                    } elseif ($minutesToDue <= $urgencyCritical) {
+                        $taskClass .= ' task-urgency-critical';
+                    } elseif ($minutesToDue <= $urgencyGreen) {
+                        $taskClass .= ' task-urgency-soon';
                     } else {
-                        $taskClass .= ' task-item-green';
+                        $taskClass .= ' task-urgency-green';
                     }
                 ?>
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(
-this, <?php echo $task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskCompletion(this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                 </li>
@@ -202,25 +198,23 @@ this, <?php echo $task['id']; ?>)">
     <script>
     function toggleTaskCompletion(button, taskId) {
         const taskElement = document.getElementById('task-' + taskId);
-        taskElement.classList.toggle('completed');
-        button.textContent = taskElement.classList.contains('completed') ? 'Uncomplete Task' : 'Complete Task';
+        const isCompleted = taskElement.classList.toggle('task-completed');
+        button.textContent = isCompleted ? 'Uncomplete Task' : 'Complete Task';
 
         fetch('task_complete.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'task_id=' + taskId
+            body: 'task_id=' + taskId + '&completed=' + isCompleted
         })
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                taskElement.classList.toggle('completed');
-                button.textContent = taskElement.classList.contains('completed') ? 'Uncomplete Task' : 'Complete Task';
+                taskElement.classList.toggle('task-completed');
+                button.textContent = taskElement.classList.contains('task-completed') ? 'Uncomplete Task' : 'Complete Task';
                 alert('Error: ' + data.error);
             }
         })
         .catch((error) => {
-            taskElement.classList.toggle('completed');
-            button.textContent = taskElement.classList.contains('completed') ? 'Uncomplete Task' : 'Complete Task';
             console.error('Error:', error);
         });
     }
@@ -230,17 +224,17 @@ this, <?php echo $task['id']; ?>)">
             button.addEventListener('click', function() {
                 const itemId = this.getAttribute('data-item-id');
                 const itemElement = document.getElementById('item-' + itemId);
-                const isCompleted = itemElement.classList.contains('completed') ? 0 : 1;
+                const isCompleted = itemElement.classList.contains('completed');
                 fetch('checklist_item_complete.php', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'item_id=' + itemId + '&is_completed=' + isCompleted
+                    body: 'item_id=' + itemId + '&is_completed=' + (!isCompleted ? 1 : 0)
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        itemElement.classList.toggle('completed', isCompleted === 1);
-                        this.textContent = isCompleted === 1 ? 'Uncomplete' : 'Complete';
+                        itemElement.classList.toggle('completed');
+                        this.textContent = itemElement.classList.contains('completed') ? 'Complete' : 'Uncomplete';
                     } else {
                         alert('Error: ' + data.error);
                     }
