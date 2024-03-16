@@ -73,24 +73,25 @@ button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover
 }
 
 /* Task Urgency */
-.task-item-green {
-    background-color: #1CD221;
+
+.task-urgency-green {
+    background-color: #1CD221; /* Green for less urgent tasks */
     color: #FFFFFF;
     padding: 10px;
     margin-bottom: 5px;
     border-radius: 5px;
 }
 
-.task-today {
-    background-color: #FCB300;
+.task-urgency-soon {
+    background-color: #FCB300; /* Orange for tasks that are upcoming soon */
     color: #404040;
     padding: 10px;
     margin-bottom: 5px;
     border-radius: 5px;
 }
 
-.task-soon {
-    background-color: #EE5606;
+.task-urgency-critical {
+    background-color: #EE5606; /* Reddish-orange for critical tasks */
     color: #404040;
     padding: 10px;
     margin-bottom: 5px;
@@ -98,7 +99,7 @@ button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover
 }
 
 .task-past-due {
-    background-color: #FF0000;
+    background-color: #FF0000; /* Red for past due tasks */
     color: #FFFFFF;
     padding: 10px;
     margin-bottom: 5px;
@@ -107,7 +108,7 @@ button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover
 
 .task-completed {
     text-decoration: line-through;
-    background-color: #666699;
+    background-color: #666699; /* Gray for completed tasks */
     color: #FFFFFF;
     padding: 10px;
     margin-bottom: 5px;
