@@ -2,42 +2,39 @@
 session_start();
 require 'config.php';
 
-// Initialize PDO instance at the beginning
 $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// User Authentication
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
 } elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
-    // Fetch user details using the remember token from the cookie
     $rememberToken = $_COOKIE['rememberMe'];
-    $userStmt = $pdo->prepare("SELECT id, name, role, timezone FROM users WHERE remember_token = ?");
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token = ?");
     $userStmt->execute([$rememberToken]);
     $userDetails = $userStmt->fetch();
 
     if ($userDetails) {
-        // Set session variables if user is found
         $_SESSION['user_id'] = $userDetails['id'];
-        $_SESSION['username'] = $userDetails['name']; // Assuming you want to store the name in the session
-        // Re-fetch user details to avoid issues if user details were not properly set in session
-        $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
-        $userStmt->execute([$_SESSION['user_id']]);
-        $userDetails = $userStmt->fetch();
+        $_SESSION['username'] = $userDetails['name'];
+        $_SESSION['timezone'] = $userDetails['timezone'];
+        $_SESSION['urgency_green'] = $userDetails['urgency_green'];
+        $_SESSION['urgency_critical'] = $userDetails['urgency_critical'];
     } else {
-        // If no user found with the token, redirect to login
         header('Location: login.php');
         exit();
     }
 } else {
-    // Fetch user details from the database using the session user_id
-    $userStmt = $pdo->prepare("SELECT name, role, timezone FROM users WHERE id = ?");
-    $userStmt->execute([$_SESSION['user_id']]);
+    $userId = $_SESSION['user_id'];
+    $userStmt = $pdo->prepare("SELECT name, role, timezone, urgency_green, urgency_critical FROM users WHERE id = ?");
+    $userStmt->execute([$userId]);
     $userDetails = $userStmt->fetch();
 }
 
 $userTimezone = new DateTimeZone($userDetails['timezone'] ?? 'UTC');
+$nowInUserTimezone = new DateTime('now', $userTimezone); // Define $nowInUserTimezone here
+$urgencyGreen = $userDetails['urgency_green'];
+$urgencyCritical = $userDetails['urgency_critical'];
 
 $currentMonth = isset($_GET['month']) ? $_GET['month'] : date('m');
 $currentYear = isset($_GET['year']) ? $_GET['year'] : date('Y');
@@ -88,11 +85,9 @@ $nextYear = date('Y', strtotime('+1 month', strtotime("$currentYear-$currentMont
     <div class="calendar-container">
         <h1>Calendar</h1>
         <div class="month-navigation">
-            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar
--navigation-btn previous-month">Previous</button>
+            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-month">Previous</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
-            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigat
-ion-btn next-month">Next</button>
+            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
         </div>
         <div class="calendar">
             <table>
@@ -110,7 +105,6 @@ ion-btn next-month">Next</button>
                 <tbody>
                     <?php
                     $currentDate = clone $startDayOfWeek;
-                    $nowInUserTimezone = new DateTime('now', $userTimezone); // Get the current time in user's timezone
                     while ($currentDate <= $endDayOfWeek) {
                         if ($currentDate > $lastDayOfMonth && $currentDate->format('w') == 0) {
                             break;
@@ -121,29 +115,32 @@ ion-btn next-month">Next</button>
                             echo "<div class='date-box'>";
                             if ($currentDate >= $firstDayOfMonth && $currentDate <= $lastDayOfMonth) {
                                 $isToday = $currentDate->format('Y-m-d') === $nowInUserTimezone->format('Y-m-d');
-                                $class = 'date' . ($isToday ? ' current-day' : '');
-                                echo "<div class='{$class}'>" . $currentDate->format('j') . "</div>";
-                                foreach ($tasks as $task) {
-                                    $dueDate = new DateTime($task['due_date'], new DateTimeZone('UTC'));
-                                    $dueDate->setTimezone($userTimezone);
-                                    if ($dueDate->format('Y-m-d') === $currentDate->format('Y-m-d')) {
-                                        $now = new DateTime("now", $userTimezone);
-                                        $interval = $now->diff($dueDate);
-                                        $taskClass = $task['completed'] ? 'task-completed' : 'task-item-green';
-                                        if (!$task['completed']) {
-                                            if ($interval->invert == 1) {
-                                                $taskClass = 'task-past-due';
-                                            } elseif ($interval->days == 0 && $interval->h < 3) {
-                                                $taskClass = 'task-soon';
-                                            } elseif ($interval->days == 0) {
-                                                $taskClass = 'task-today';
-                                            }
-                                        }
-                                        echo "<div class='task {$taskClass}'><a href='edit_task.php?id={$task['id']}' class='task-name'>
-" . htmlspecialchars($task['summary']) . "</a></div>";
+                                $dateClass = $isToday ? "date current-day" : "date";
+                                echo "<div class='{$dateClass}'>" . $currentDate->format('j') . "</div>";
+                            }
+                            echo "<div class='tasks' style='margin-top: 20px;'>";
+                            foreach ($tasks as $task) {
+                                $dueDate = new DateTime($task['due_date'], new DateTimeZone('UTC'));
+                                $dueDate->setTimezone($userTimezone);
+                                if ($dueDate->format('Y-m-d') === $currentDate->format('Y-m-d')) {
+                                    $interval = $nowInUserTimezone->diff($dueDate);
+                                    $minutesToDue = $interval->days * 1440 + $interval->h * 60 + $interval->i;
+                                    $taskClass = '';
+                                    if ($task['completed']) {
+                                        $taskClass .= 'task-completed';
+                                    } elseif ($interval->invert == 1) {
+                                        $taskClass .= 'task-past-due';
+                                    } elseif ($minutesToDue <= $urgencyCritical) {
+                                        $taskClass .= 'task-urgency-critical';
+                                    } elseif ($minutesToDue <= $urgencyGreen) {
+                                        $taskClass .= 'task-urgency-soon';
+                                    } else {
+                                        $taskClass .= 'task-urgency-green';
                                     }
+                                    echo "<div class='{$taskClass}'><a href='edit_task.php?id={$task['id']}' class='task-name'>" . htmlspecialchars($task['summary']) . "</a></div>";
                                 }
                             }
+                            echo "</div>";
                             echo "</div>";
                             echo "</td>";
                             $currentDate->modify('+1 day');
@@ -156,13 +153,5 @@ ion-btn next-month">Next</button>
         </div>
         <a href="main.php" class="btn">Tasks</a>
     </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            var rowCount = document.querySelector('.calendar table tbody').getElementsByTagName('tr').length;
-            if (rowCount > 5) {
-                document.querySelector('.calendar-container').style.paddingBottom = '30px';
-            }
-        });
-    </script>
 </body>
 </html>
