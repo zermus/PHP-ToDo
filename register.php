@@ -69,21 +69,18 @@ if (isset($_POST['register'], $_POST['csrf_token']) && $registrationEnabled) {
                 } else {
                     $verificationToken = bin2hex(random_bytes(16));
                     $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) V
-ALUES (?, ?, ?, ?, 'user', ?, ?)");
+                    $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'user', ?, ?)");
                     $stmt->execute([$name, $username, $email, $passwordHash, $verificationToken, $timezone]);
 
                     $verificationLink = $base_url . "verify.php?token=" . $verificationToken;
                     $subject = "Verify Your Email";
-                    $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:
-\n$verificationLink\n\nThank you!";
+                    $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:\n$verificationLink\n\nThank you!";
                     $headers = "From: " . $from_email;
 
                     if (mail($email, $subject, $emailMessage, $headers)) {
                         $successMessage = "Registration successful! Please check your email to verify your account.";
                     } else {
-                        $message = "Registration completed, but the verification email could not be sent. Please check your server's
- email settings.";
+                        $message = "Registration completed, but the verification email could not be sent. Please check your server's email settings.";
                     }
                 }
             } catch (PDOException $e) {
