@@ -2,6 +2,11 @@
 session_start();
 require 'config.php';
 
+// Generate CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $timezones = [
     "America/New_York" => "Eastern Time (US & Canada)",
     "America/Chicago" => "Central Time (US & Canada)",
@@ -19,7 +24,6 @@ $timezones = [
     "Europe/Moscow" => "Moscow, St. Petersburg, Volgograd",
 ];
 
-// Database connection
 $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
@@ -67,65 +71,70 @@ try {
     $users = $usersStmt->fetchAll();
 
     $isSuperAdmin = $userRole === 'super_admin';
-    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.rol
-e = 'super_admin')";
+    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user
+_id = u.id WHERE u.role = 'super_admin')";
     $groupsStmt = $pdo->prepare("SELECT id, name FROM user_groups $exclusionQuery");
     $groupsStmt->execute();
     $groups = $groupsStmt->fetchAll();
 
-    $membershipQuery = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
+    $membershipQuery = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHE
+RE m.user_id = ?");
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-        switch ($_POST['action']) {
-            case 'toggle_registration':
-                $newStatus = isset($_POST['registration_status']) ? '1' : '0';
-                $updateStmt = $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'");
-                $updateStmt->execute([$newStatus]);
-                header('Location: manage_users.php');
-                exit();
-                break;
-            case 'make_admin':
-            case 'demote_user':
-            case 'delete_user':
-            case 'update_timezone':
-                handleUserActions($pdo, $_POST);
-                $usersStmt->execute();
-                $users = $usersStmt->fetchAll();
-                break;
-            case 'assign_user':
-                if (isset($_POST['user_id'], $_POST['group_id'])) {
-                    $assignStmt = $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE group_id = VALUES
-(group_id)");
-                    $assignStmt->execute([$_POST['user_id'], $_POST['group_id']]);
-                    $successMessage = "User assigned to group successfully.";
-                }
-                break;
-            case 'remove_from_group':
-                if (isset($_POST['user_id'], $_POST['group_id'])) {
-                    $removeStmt = $pdo->prepare("DELETE FROM group_memberships WHERE user_id = ? AND group_id = ?");
-                    $removeStmt->execute([$_POST['user_id'], $_POST['group_id']]);
-                    $successMessage = "User removed from group successfully.";
-                }
-                break;
-            case 'delete_group':
-                $response = handleGroupDeletion($pdo, $_POST['group_id'], $groupsStmt);
-                if (isset($response['error'])) {
-                    $errorMessage = $response['error'];
-                }
-                if (isset($response['success'])) {
-                    $successMessage = $response['success'];
-                }
-                break;
-            case 'create_group':
-                $groupName = filter_input(INPUT_POST, 'group_name', FILTER_SANITIZE_STRING);
-                if (!empty($groupName)) {
-                    $createGroupStmt = $pdo->prepare("INSERT INTO user_groups (name) VALUES (?)");
-                    $createGroupStmt->execute([$groupName]);
-                    $successMessage = "Group created successfully.";
-                    $groupsStmt->execute();
-                    $groups = $groupsStmt->fetchAll();
-                }
-                break;
+        if ($_SESSION['csrf_token'] !== $_POST['csrf_token']) {
+            $errorMessage = "CSRF token mismatch.";
+        } else {
+            switch ($_POST['action']) {
+                case 'toggle_registration':
+                    $newStatus = isset($_POST['registration_status']) ? '1' : '0';
+                    $updateStmt = $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'");
+                    $updateStmt->execute([$newStatus]);
+                    header('Location: manage_users.php');
+                    exit();
+                    break;
+                case 'make_admin':
+                case 'demote_user':
+                case 'delete_user':
+                case 'update_timezone':
+                    handleUserActions($pdo, $_POST);
+                    $usersStmt->execute();
+                    $users = $usersStmt->fetchAll();
+                    break;
+                case 'assign_user':
+                    if (isset($_POST['user_id'], $_POST['group_id'])) {
+                        $assignStmt = $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?) ON DUPLICATE KE
+Y UPDATE group_id = VALUES(group_id)");
+                        $assignStmt->execute([$_POST['user_id'], $_POST['group_id']]);
+                        $successMessage = "User assigned to group successfully.";
+                    }
+                    break;
+                case 'remove_from_group':
+                    if (isset($_POST['user_id'], $_POST['group_id'])) {
+                        $removeStmt = $pdo->prepare("DELETE FROM group_memberships WHERE user_id = ? AND group_id = ?");
+                        $removeStmt->execute([$_POST['user_id'], $_POST['group_id']]);
+                        $successMessage = "User removed from group successfully.";
+                    }
+                    break;
+                case 'delete_group':
+                    $response = handleGroupDeletion($pdo, $_POST['group_id'], $groupsStmt);
+                    if (isset($response['error'])) {
+                        $errorMessage = $response['error'];
+                    }
+                    if (isset($response['success'])) {
+                        $successMessage = $response['success'];
+                    }
+                    break;
+                case 'create_group':
+                    $groupName = trim(filter_input(INPUT_POST, 'group_name', FILTER_SANITIZE_STRING));
+                    if (!empty($groupName)) {
+                        $createGroupStmt = $pdo->prepare("INSERT INTO user_groups (name) VALUES (?)");
+                        $createGroupStmt->execute([$groupName]);
+                        $successMessage = "Group created successfully.";
+                        $groupsStmt->execute();
+                        $groups = $groupsStmt->fetchAll();
+                    }
+                    break;
+            }
         }
     }
 } catch (PDOException $e) {
@@ -164,8 +173,6 @@ function handleUserActions($pdo, $postData) {
 }
 
 function handleGroupDeletion($pdo, $groupId, $groupsStmt) {
-    $errorMessage = '';
-
     $memberCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM group_memberships WHERE group_id = ?");
     $memberCheckStmt->execute([$groupId]);
     if ($memberCheckStmt->fetchColumn() > 0) {
@@ -188,8 +195,8 @@ function handleGroupDeletion($pdo, $groupId, $groupsStmt) {
 }
 
 function groupHasSuperAdmin($pdo, $groupId) {
-    $query = $pdo->prepare("SELECT COUNT(*) FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin' AND gm.group_id
- = ?");
+    $query = $pdo->prepare("SELECT COUNT(*) FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_
+admin' AND gm.group_id = ?");
     $query->execute([$groupId]);
     return $query->fetchColumn() > 0;
 }
@@ -209,12 +216,15 @@ function groupHasSuperAdmin($pdo, $groupId) {
         <form action="manage_users.php" method="post">
             User Registration:
             <input type="hidden" name="action" value="toggle_registration">
-            <input type="checkbox" name="registration_status" <?php echo $registrationEnabled ? 'checked' : ''; ?> onchange="this.form.submit()">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+            <input type="checkbox" name="registration_status" <?php echo $registrationEnabled ? 'checked' : ''; ?> onchange="this.fo
+rm.submit()">
         </form>
 
         <form action="manage_users.php" method="post">
             <input type="text" name="group_name" placeholder="Group Name" required>
             <input type="hidden" name="action" value="create_group">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <button type="submit" class="btn">Create Group</button>
         </form>
 
@@ -237,6 +247,7 @@ function groupHasSuperAdmin($pdo, $groupId) {
                 <?php endforeach; ?>
             </select>
             <input type="hidden" name="action" value="assign_user">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <button type="submit" class="btn">Assign to Group</button>
         </form>
 
@@ -249,6 +260,7 @@ function groupHasSuperAdmin($pdo, $groupId) {
                 <?php endforeach; ?>
             </select>
             <input type="hidden" name="action" value="delete_group">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <button type="submit" class="btn">Delete Group</button>
         </form>
 
@@ -287,6 +299,8 @@ function groupHasSuperAdmin($pdo, $groupId) {
                                 </select>
                                 <input type="hidden" name="action" value="update_timezone">
                                 <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']);
+?>">
                                 <button type="submit" class="btn">Update Timezone</button>
                             </form>
                             <?php else: ?>
@@ -299,12 +313,14 @@ function groupHasSuperAdmin($pdo, $groupId) {
                             $userGroups = $membershipQuery->fetchAll();
                             foreach ($userGroups as $group) {
                                 echo htmlspecialchars($group['name']) . "<br>";
-                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role'] !== 'super_admin' && !
-groupHasSuperAdmin($pdo, $group['id']))) {
+                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role']
+!== 'super_admin' && !groupHasSuperAdmin($pdo, $group['id']))) {
                                     echo "<form action='manage_users.php' method='post'>
                                         <input type='hidden' name='action' value='remove_from_group'>
                                         <input type='hidden' name='user_id' value='{$user['id']}'>
                                         <input type='hidden' name='group_id' value='{$group['id']}'>
+                                        <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token'])
+. "'>
                                         <button type='submit' class='btn'>Remove from {$group['name']}</button>
                                     </form>";
                                 }
@@ -318,18 +334,24 @@ groupHasSuperAdmin($pdo, $group['id']))) {
                                     <form action="manage_users.php" method="post">
                                         <input type="hidden" name="action" value="demote_user">
                                         <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_to
+ken']); ?>">
                                         <button type="submit" class="btn">Demote to User</button>
                                     </form>
                                 <?php else: ?>
                                     <form action="manage_users.php" method="post">
                                         <input type="hidden" name="action" value="make_admin">
                                         <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_to
+ken']); ?>">
                                         <button type="submit" class="btn">Make Admin</button>
                                     </form>
                                 <?php endif; ?>
                                 <form action="manage_users.php" method="post">
                                     <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'
+]); ?>">
                                     <button type="submit" class="btn">Delete</button>
                                 </form>
                             <?php endif; ?>
