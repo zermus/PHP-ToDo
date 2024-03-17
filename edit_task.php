@@ -2,6 +2,11 @@
 session_start();
 require 'config.php';
 
+// Generate CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Database connection function
 function connectToDatabase($host, $dbname, $db_username, $db_password) {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
@@ -33,7 +38,8 @@ $errorMessage = '';
 
 if (isset($_SESSION['user_id'])) {
     // Fetch groups the user is part of
-    $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
+    $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.u
+ser_id = ?");
     $groupStmt->execute([$_SESSION['user_id']]);
     $groups = $groupStmt->fetchAll();
 
@@ -57,8 +63,8 @@ if (isset($_SESSION['user_id'])) {
         $authQuery->execute([$taskId]);
         $taskInfo = $authQuery->fetch();
 
-        $authorized = ($taskInfo['user_id'] == $_SESSION['user_id']) || ($taskInfo['group_id'] && inGroup($pdo, $_SESSION['user_id'], $taskInfo['group_id'
-]));
+        $authorized = ($taskInfo['user_id'] == $_SESSION['user_id']) || ($taskInfo['group_id'] && inGroup($pdo, $_SESSION['user_id']
+, $taskInfo['group_id']));
         if (!$authorized) {
             $errorMessage = "You do not have permission to edit this task.";
         } else {
@@ -75,7 +81,8 @@ if (isset($_SESSION['user_id'])) {
                 $taskDetails = $task['details'];
                 $isChecklist = (bool)$pdo->query("SELECT COUNT(*) FROM checklist_items WHERE task_id = $taskId")->fetchColumn();
                 if ($isChecklist) {
-                    $checklistItems = $pdo->query("SELECT content FROM checklist_items WHERE task_id = $taskId")->fetchAll(PDO::FETCH_COLUMN);
+                    $checklistItems = $pdo->query("SELECT content FROM checklist_items WHERE task_id = $taskId")->fetchAll(PDO::FETC
+H_COLUMN);
                 }
             } else {
                 $errorMessage = 'Task not found.';
@@ -86,7 +93,7 @@ if (isset($_SESSION['user_id'])) {
     }
 
     try {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST' && $authorized) {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && $authorized && $_SESSION['csrf_token'] === $_POST['csrf_token']) {
             $taskName = filter_input(INPUT_POST, 'taskName', FILTER_SANITIZE_STRING);
             $taskDetails = filter_input(INPUT_POST, 'taskDetails', FILTER_SANITIZE_STRING);
             $dueDate = filter_input(INPUT_POST, 'dueDate', FILTER_SANITIZE_STRING);
@@ -106,10 +113,10 @@ if (isset($_SESSION['user_id'])) {
             $dueDateTime = new DateTime($dueDate . ' ' . $dueTime, $userTimezone);
             $dueDateTime->setTimezone(new DateTimeZone('UTC'));
 
-            $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?, completed = ?, details = ?, re
-ceive_completion_email = ?, reminder_sent = ? WHERE id = ?");
-            $updateStmt->execute([$taskName, $groupId, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDetails, $receiveComplet
-ionEmail, ($dueDate !== $localDueDate || $dueTime !== $localDueTime) ? 0 : $task['reminder_sent'], $taskId]);
+            $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?, complete
+d = ?, details = ?, receive_completion_email = ?, reminder_sent = ? WHERE id = ?");
+            $updateStmt->execute([$taskName, $groupId, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDe
+tails, $receiveCompletionEmail, ($dueDate !== $localDueDate || $dueTime !== $localDueTime) ? 0 : $task['reminder_sent'], $taskId]);
 
             if ($isChecklist) {
                 $pdo->exec("DELETE FROM checklist_items WHERE task_id = $taskId");
@@ -151,22 +158,28 @@ function inGroup($pdo, $userId, $groupId) {
         <div class="error-message"><?php echo $errorMessage; ?></div>
         <?php else: ?>
         <form action="" method="post">
+            <!-- CSRF Token -->
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
             <!-- Task Name -->
             <div class="form-group">
                 <label for="taskName">Task Name:</label>
-                <input type="text" id="taskName" name="taskName" value="<?php echo htmlspecialchars($task['summary'] ?? ''); ?>" required>
+                <input type="text" id="taskName" name="taskName" value="<?php echo htmlspecialchars($task['summary'] ?? ''); ?>" req
+uired>
             </div>
 
             <!-- Checklist Toggle -->
             <div class="form-group">
-                <input type="checkbox" id="isChecklist" name="isChecklist" <?php echo $isChecklist ? 'checked' : ''; ?> onchange="toggleTaskType()">
+                <input type="checkbox" id="isChecklist" name="isChecklist" <?php echo $isChecklist ? 'checked' : ''; ?> onchange="to
+ggleTaskType()">
                 <label for="isChecklist">Is this a checklist?</label>
             </div>
 
             <!-- Task Details -->
             <div id="taskDetailsContainer" class="form-group" style="<?php echo $isChecklist ? 'display:none;' : ''; ?>">
                 <label for="taskDetails">Task Details:</label>
-                <textarea id="taskDetails" name="taskDetails" rows="8" style="width: 100%;"><?php echo htmlspecialchars($taskDetails); ?></textarea>
+                <textarea id="taskDetails" name="taskDetails" rows="8" style="width: 100%;"><?php echo htmlspecialchars($taskDetails
+); ?></textarea>
             </div>
 
             <!-- Checklist Container -->
@@ -205,7 +218,8 @@ function inGroup($pdo, $userId, $groupId) {
 
             <!-- Completion Email Preference -->
             <div class="form-group">
-                <input type="checkbox" id="receiveCompletionEmail" name="receiveCompletionEmail" <?php echo $receiveCompletionEmail ? 'checked' : ''; ?>>
+                <input type="checkbox" id="receiveCompletionEmail" name="receiveCompletionEmail" <?php echo $receiveCompletionEmail
+? 'checked' : ''; ?>>
                 <label for="receiveCompletionEmail">Receive email upon task completion</label>
             </div>
 
@@ -216,8 +230,8 @@ function inGroup($pdo, $userId, $groupId) {
                 <select id="group_id" name="group_id">
                     <option value="">None</option>
                     <?php foreach ($groups as $group): ?>
-                    <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>><?php echo htmlspecia
-lchars($group['name']); ?></option>
+                    <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>
+><?php echo htmlspecialchars($group['name']); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -236,29 +250,29 @@ lchars($group['name']); ?></option>
     </div>
 
     <script>
-    function toggleTaskType() {
-        var isChecklist = document.getElementById('isChecklist').checked;
-        var checklistContainer = document.getElementById('checklistContainer');
-        var taskDetailsContainer = document.getElementById('taskDetailsContainer');
-        if (isChecklist) {
-            taskDetailsContainer.style.display = 'none';
-            checklistContainer.style.display = 'block';
-            if (document.getElementById('checklistItems').children.length === 0) {
-                addChecklistItem();
+        function toggleTaskType() {
+            var isChecklist = document.getElementById('isChecklist').checked;
+            var checklistContainer = document.getElementById('checklistContainer');
+            var taskDetailsContainer = document.getElementById('taskDetailsContainer');
+            if (isChecklist) {
+                taskDetailsContainer.style.display = 'none';
+                checklistContainer.style.display = 'block';
+                if (document.getElementById('checklistItems').children.length === 0) {
+                    addChecklistItem();
+                }
+            } else {
+                checklistContainer.style.display = 'none';
+                taskDetailsContainer.style.display = 'block';
             }
-        } else {
-            checklistContainer.style.display = 'none';
-            taskDetailsContainer.style.display = 'block';
         }
-    }
 
-    function addChecklistItem() {
-        var checklistItems = document.getElementById('checklistItems');
-        var newItem = document.createElement('input');
-        newItem.setAttribute('type', 'text');
-        newItem.setAttribute('name', 'checklist[]');
-        checklistItems.appendChild(newItem);
-    }
+        function addChecklistItem() {
+            var checklistItems = document.getElementById('checklistItems');
+            var newItem = document.createElement('input');
+            newItem.setAttribute('type', 'text');
+            newItem.setAttribute('name', 'checklist[]');
+            checklistItems.appendChild(newItem);
+        }
     </script>
 </body>
 </html>
