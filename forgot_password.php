@@ -50,8 +50,7 @@ if (isset($_POST['forgot_password'], $_POST['csrf_token'])) {
                         $resetToken = bin2hex(random_bytes(32));
 
                         // Store the reset token in the database
-                        $updateStmt = $pdo->prepare("UPDATE users SET reset_token = ?, reset_token_expiry = DATE_ADD(NOW(), INTERVAL
- 1 HOUR) WHERE id = ?");
+                        $updateStmt = $pdo->prepare("UPDATE users SET reset_token = ?, reset_token_expiry = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?");
                         $updateStmt->execute([$resetToken, $user['id']]);
 
                         // Send email with password reset link
@@ -59,8 +58,7 @@ if (isset($_POST['forgot_password'], $_POST['csrf_token'])) {
                         $to = $user['email'];
                         $subject = "Password Reset Request";
                         $message = "Hello,\n\n";
-                        $message .= "You have requested to reset your password. Please click on the link below to reset your passwor
-d:\n";
+                        $message .= "You have requested to reset your password. Please click on the link below to reset your password:\n";
                         $message .= "$resetLink\n\n";
                         $message .= "If you did not request this, please ignore this email.\n\n";
                         $message .= "Thank you,\nThe To Do Team";
