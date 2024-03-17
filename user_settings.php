@@ -21,8 +21,7 @@ if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     exit();
 } elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
     $rememberToken = $_COOKIE['rememberMe'];
-    $userStmt = $pdo->prepare("SELECT id, email, timezone, password, urgency_green, urgency_critical FROM users WHERE remember_token
- = ?");
+    $userStmt = $pdo->prepare("SELECT id, email, timezone, password, urgency_green, urgency_critical FROM users WHERE remember_token = ?");
     $userStmt->execute([$rememberToken]);
     $userDetails = $userStmt->fetch();
 
@@ -70,17 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['csrf_token'])) {
                     $tokenExpiry = (new DateTime())->add(new DateInterval('P1D'))->format('Y-m-d H:i:s');
 
                     $subject = "Confirm Your Email Change";
-                    $emailMessage = "Hello,\n\nYou have requested to change your email address to $newEmail.\n\nPlease click the fol
-lowing link to confirm your email change:\n" . $base_url . "confirm_email_change.php?token=$verificationToken\n\nThank you!";
+                    $emailMessage = "Hello,\n\nYou have requested to change your email address to $newEmail.\n\nPlease click the following link to confirm your email change:\n" . $base_url . "confirm_email_change.php?token=$verificationToken\n\nThank yo
+u!";
                     $headers = "From: " . $from_email;
                     mail($userDetails['email'], $subject, $emailMessage, $headers);
 
-                    $updateUserStmt = $pdo->prepare("UPDATE users SET new_email = ?, new_email_token = ?, new_email_token_expiry = ?
- WHERE id = ?");
+                    $updateUserStmt = $pdo->prepare("UPDATE users SET new_email = ?, new_email_token = ?, new_email_token_expiry = ? WHERE id = ?");
                     $updateUserStmt->execute([$newEmail, $verificationToken, $tokenExpiry, $userId]);
 
-                    $successMessage .= " A confirmation email has been sent to your current email address ($userDetails[email]). Ple
-ase confirm the change to update your email to $newEmail.";
+                    $successMessage .= " A confirmation email has been sent to your current email address ($userDetails[email]). Please confirm the change to update your email to $newEmail.";
                 } else {
                     $message = "Invalid email format.";
                 }
@@ -109,8 +106,7 @@ ase confirm the change to update your email to $newEmail.";
                 $successMessage .= " Urgency settings updated successfully.";
 
                 // Re-fetch the updated user details to ensure the form reflects the current database state
-                $userStmt = $pdo->prepare("SELECT email, timezone, password, urgency_green, urgency_critical FROM users WHERE id = ?
-");
+                $userStmt = $pdo->prepare("SELECT email, timezone, password, urgency_green, urgency_critical FROM users WHERE id = ?");
                 $userStmt->execute([$userId]);
                 $userDetails = $userStmt->fetch();
             }
@@ -180,40 +176,25 @@ ase confirm the change to update your email to $newEmail.";
         <form method="post">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <label for="email">Email:</label>
-            <input type="email" name="email" id="email" placeholder="Email" value="<?php echo htmlspecialchars($userDetails['email']
-); ?>" required>
+            <input type="email" name="email" id="email" placeholder="Email" value="<?php echo htmlspecialchars($userDetails['email']); ?>" required>
 
             <label for="timezone">Timezone:</label>
             <select name="timezone" id="timezone">
                 <!-- Timezone options -->
-                <option value="America/New_York" <?php echo $userDetails['timezone'] == 'America/New_York' ? 'selected' : ''; ?>>Eas
-tern Time (US & Canada)</option>
-                <option value="America/Chicago" <?php echo $userDetails['timezone'] == 'America/Chicago' ? 'selected' : ''; ?>>Centr
-al Time (US & Canada)</option>
-                <option value="America/Denver" <?php echo $userDetails['timezone'] == 'America/Denver' ? 'selected' : ''; ?>>Mountai
-n Time (US & Canada)</option>
-                <option value="America/Los_Angeles" <?php echo $userDetails['timezone'] == 'America/Los_Angeles' ? 'selected' : '';
-?>>Pacific Time (US & Canada)</option>
-                <option value="America/Anchorage" <?php echo $userDetails['timezone'] == 'America/Anchorage' ? 'selected' : ''; ?>>A
-laska</option>
-                <option value="America/Halifax" <?php echo $userDetails['timezone'] == 'America/Halifax' ? 'selected' : ''; ?>>Atlan
-tic Time (Canada)</option>
-                <option value="America/Buenos_Aires" <?php echo $userDetails['timezone'] == 'America/Buenos_Aires' ? 'selected' : ''
-; ?>>Buenos Aires</option>
-                <option value="America/Sao_Paulo" <?php echo $userDetails['timezone'] == 'America/Sao_Paulo' ? 'selected' : ''; ?>>S
-ao Paulo</option>
-                <option value="America/Lima" <?php echo $userDetails['timezone'] == 'America/Lima' ? 'selected' : ''; ?>>Lima</optio
-n>
-                <option value="Pacific/Honolulu" <?php echo $userDetails['timezone'] == 'Pacific/Honolulu' ? 'selected' : ''; ?>>Haw
-aii</option>
-                <option value="Europe/London" <?php echo $userDetails['timezone'] == 'Europe/London' ? 'selected' : ''; ?>>London</o
-ption>
-                <option value="Europe/Berlin" <?php echo $userDetails['timezone'] == 'Europe/Berlin' ? 'selected' : ''; ?>>Berlin, F
-rankfurt, Paris, Rome, Madrid</option>
-                <option value="Europe/Athens" <?php echo $userDetails['timezone'] == 'Europe/Athens' ? 'selected' : ''; ?>>Athens, I
-stanbul, Minsk</option>
-                <option value="Europe/Moscow" <?php echo $userDetails['timezone'] == 'Europe/Moscow' ? 'selected' : ''; ?>>Moscow, S
-t. Petersburg, Volgograd</option>
+                <option value="America/New_York" <?php echo $userDetails['timezone'] == 'America/New_York' ? 'selected' : ''; ?>>Eastern Time (US & Canada)</option>
+                <option value="America/Chicago" <?php echo $userDetails['timezone'] == 'America/Chicago' ? 'selected' : ''; ?>>Central Time (US & Canada)</option>
+                <option value="America/Denver" <?php echo $userDetails['timezone'] == 'America/Denver' ? 'selected' : ''; ?>>Mountain Time (US & Canada)</option>
+                <option value="America/Los_Angeles" <?php echo $userDetails['timezone'] == 'America/Los_Angeles' ? 'selected' : ''; ?>>Pacific Time (US & Canada)</option>
+                <option value="America/Anchorage" <?php echo $userDetails['timezone'] == 'America/Anchorage' ? 'selected' : ''; ?>>Alaska</option>
+                <option value="America/Halifax" <?php echo $userDetails['timezone'] == 'America/Halifax' ? 'selected' : ''; ?>>Atlantic Time (Canada)</option>
+                <option value="America/Buenos_Aires" <?php echo $userDetails['timezone'] == 'America/Buenos_Aires' ? 'selected' : ''; ?>>Buenos Aires</option>
+                <option value="America/Sao_Paulo" <?php echo $userDetails['timezone'] == 'America/Sao_Paulo' ? 'selected' : ''; ?>>Sao Paulo</option>
+                <option value="America/Lima" <?php echo $userDetails['timezone'] == 'America/Lima' ? 'selected' : ''; ?>>Lima</option>
+                <option value="Pacific/Honolulu" <?php echo $userDetails['timezone'] == 'Pacific/Honolulu' ? 'selected' : ''; ?>>Hawaii</option>
+                <option value="Europe/London" <?php echo $userDetails['timezone'] == 'Europe/London' ? 'selected' : ''; ?>>London</option>
+                <option value="Europe/Berlin" <?php echo $userDetails['timezone'] == 'Europe/Berlin' ? 'selected' : ''; ?>>Berlin, Frankfurt, Paris, Rome, Madrid</option>
+                <option value="Europe/Athens" <?php echo $userDetails['timezone'] == 'Europe/Athens' ? 'selected' : ''; ?>>Athens, Istanbul, Minsk</option>
+                <option value="Europe/Moscow" <?php echo $userDetails['timezone'] == 'Europe/Moscow' ? 'selected' : ''; ?>>Moscow, St. Petersburg, Volgograd</option>
             </select>
 
             <label for="currentPassword">Current Password (for password change only):</label>
@@ -245,21 +226,14 @@ t. Petersburg, Volgograd</option>
                     <label for="urgency_critical">Critical Urgency (Less than):</label>
                     <select name="urgency_critical" id="urgency_critical">
                         <!-- Options for urgency_critical -->
-                        <option value="15" <?php echo $userDetails['urgency_critical'] == 15 ? 'selected' : ''; ?>>15 minutes</optio
-n>
-                        <option value="30" <?php echo $userDetails['urgency_critical'] == 30 ? 'selected' : ''; ?>>30 minutes</optio
-n>
+                        <option value="15" <?php echo $userDetails['urgency_critical'] == 15 ? 'selected' : ''; ?>>15 minutes</option>
+                        <option value="30" <?php echo $userDetails['urgency_critical'] == 30 ? 'selected' : ''; ?>>30 minutes</option>
                         <option value="60" <?php echo $userDetails['urgency_critical'] == 60 ? 'selected' : ''; ?>>1 hour</option>
-                        <option value="120" <?php echo $userDetails['urgency_critical'] == 120 ? 'selected' : ''; ?>>2 hours</option
->
-                        <option value="240" <?php echo $userDetails['urgency_critical'] == 240 ? 'selected' : ''; ?>>4 hours</option
->
-                        <option value="480" <?php echo $userDetails['urgency_critical'] == 480 ? 'selected' : ''; ?>>8 hours</option
->
-                        <option value="720" <?php echo $userDetails['urgency_critical'] == 720 ? 'selected' : ''; ?>>12 hours</optio
-n>
-                        <option value="1440" <?php echo $userDetails['urgency_critical'] == 1440 ? 'selected' : ''; ?>>1 day</option
->
+                        <option value="120" <?php echo $userDetails['urgency_critical'] == 120 ? 'selected' : ''; ?>>2 hours</option>
+                        <option value="240" <?php echo $userDetails['urgency_critical'] == 240 ? 'selected' : ''; ?>>4 hours</option>
+                        <option value="480" <?php echo $userDetails['urgency_critical'] == 480 ? 'selected' : ''; ?>>8 hours</option>
+                        <option value="720" <?php echo $userDetails['urgency_critical'] == 720 ? 'selected' : ''; ?>>12 hours</option>
+                        <option value="1440" <?php echo $userDetails['urgency_critical'] == 1440 ? 'selected' : ''; ?>>1 day</option>
                     </select>
                 </div>
             </div>
