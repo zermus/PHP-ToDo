@@ -38,8 +38,7 @@ $errorMessage = '';
 
 if (isset($_SESSION['user_id'])) {
     // Fetch groups the user is part of
-    $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.u
-ser_id = ?");
+    $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
     $groupStmt->execute([$_SESSION['user_id']]);
     $groups = $groupStmt->fetchAll();
 
@@ -63,8 +62,7 @@ ser_id = ?");
         $authQuery->execute([$taskId]);
         $taskInfo = $authQuery->fetch();
 
-        $authorized = ($taskInfo['user_id'] == $_SESSION['user_id']) || ($taskInfo['group_id'] && inGroup($pdo, $_SESSION['user_id']
-, $taskInfo['group_id']));
+        $authorized = ($taskInfo['user_id'] == $_SESSION['user_id']) || ($taskInfo['group_id'] && inGroup($pdo, $_SESSION['user_id'], $taskInfo['group_id']));
         if (!$authorized) {
             $errorMessage = "You do not have permission to edit this task.";
         } else {
@@ -81,8 +79,7 @@ ser_id = ?");
                 $taskDetails = $task['details'];
                 $isChecklist = (bool)$pdo->query("SELECT COUNT(*) FROM checklist_items WHERE task_id = $taskId")->fetchColumn();
                 if ($isChecklist) {
-                    $checklistItems = $pdo->query("SELECT content FROM checklist_items WHERE task_id = $taskId")->fetchAll(PDO::FETC
-H_COLUMN);
+                    $checklistItems = $pdo->query("SELECT content FROM checklist_items WHERE task_id = $taskId")->fetchAll(PDO::FETCH_COLUMN);
                 }
             } else {
                 $errorMessage = 'Task not found.';
@@ -113,10 +110,9 @@ H_COLUMN);
             $dueDateTime = new DateTime($dueDate . ' ' . $dueTime, $userTimezone);
             $dueDateTime->setTimezone(new DateTimeZone('UTC'));
 
-            $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?, complete
-d = ?, details = ?, receive_completion_email = ?, reminder_sent = ? WHERE id = ?");
-            $updateStmt->execute([$taskName, $groupId, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDe
-tails, $receiveCompletionEmail, ($dueDate !== $localDueDate || $dueTime !== $localDueTime) ? 0 : $task['reminder_sent'], $taskId]);
+            $updateStmt = $pdo->prepare("UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?, completed = ?, details = ?, receive_completion_email = ?, reminder_sent = ? WHERE id = ?");
+            $updateStmt->execute([$taskName, $groupId, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $completed, $taskDetails, $receiveCompletionEmail, ($dueDate !== $localDueDate || $dueTime !== $localDueTime) ? 0 : $task['reminder_sent'],
+$taskId]);
 
             if ($isChecklist) {
                 $pdo->exec("DELETE FROM checklist_items WHERE task_id = $taskId");
@@ -164,22 +160,19 @@ function inGroup($pdo, $userId, $groupId) {
             <!-- Task Name -->
             <div class="form-group">
                 <label for="taskName">Task Name:</label>
-                <input type="text" id="taskName" name="taskName" value="<?php echo htmlspecialchars($task['summary'] ?? ''); ?>" req
-uired>
+                <input type="text" id="taskName" name="taskName" value="<?php echo htmlspecialchars($task['summary'] ?? ''); ?>" required>
             </div>
 
             <!-- Checklist Toggle -->
             <div class="form-group">
-                <input type="checkbox" id="isChecklist" name="isChecklist" <?php echo $isChecklist ? 'checked' : ''; ?> onchange="to
-ggleTaskType()">
+                <input type="checkbox" id="isChecklist" name="isChecklist" <?php echo $isChecklist ? 'checked' : ''; ?> onchange="toggleTaskType()">
                 <label for="isChecklist">Is this a checklist?</label>
             </div>
 
             <!-- Task Details -->
             <div id="taskDetailsContainer" class="form-group" style="<?php echo $isChecklist ? 'display:none;' : ''; ?>">
                 <label for="taskDetails">Task Details:</label>
-                <textarea id="taskDetails" name="taskDetails" rows="8" style="width: 100%;"><?php echo htmlspecialchars($taskDetails
-); ?></textarea>
+                <textarea id="taskDetails" name="taskDetails" rows="8" style="width: 100%;"><?php echo htmlspecialchars($taskDetails); ?></textarea>
             </div>
 
             <!-- Checklist Container -->
@@ -218,8 +211,7 @@ ggleTaskType()">
 
             <!-- Completion Email Preference -->
             <div class="form-group">
-                <input type="checkbox" id="receiveCompletionEmail" name="receiveCompletionEmail" <?php echo $receiveCompletionEmail
-? 'checked' : ''; ?>>
+                <input type="checkbox" id="receiveCompletionEmail" name="receiveCompletionEmail" <?php echo $receiveCompletionEmail ? 'checked' : ''; ?>>
                 <label for="receiveCompletionEmail">Receive email upon task completion</label>
             </div>
 
@@ -230,8 +222,7 @@ ggleTaskType()">
                 <select id="group_id" name="group_id">
                     <option value="">None</option>
                     <?php foreach ($groups as $group): ?>
-                    <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>
-><?php echo htmlspecialchars($group['name']); ?></option>
+                    <option value="<?php echo $group['id']; ?>" <?php echo ($task['group_id'] == $group['id'] ? 'selected' : ''); ?>><?php echo htmlspecialchars($group['name']); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
