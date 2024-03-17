@@ -36,12 +36,15 @@ if (empty($_SESSION['csrf_token'])) {
 
 if (isset($_POST['login'])) {
     // CSRF token validation
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!isset($_POST['csrf_token']) || trim($_POST['csrf_token']) !== $_SESSION['csrf_token']) {
         $message = "CSRF token mismatch.";
     } else {
         $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
-        $password = $_POST['password'];
+        $password = trim($_POST['password']); // Trim password input
         $rememberMe = isset($_POST['rememberMe']);
+
+        // Trim username input
+        $username = trim($username);
 
         $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
