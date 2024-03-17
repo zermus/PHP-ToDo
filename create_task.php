@@ -28,8 +28,7 @@ if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
 }
 
 if (isset($_SESSION['user_id'])) {
-    $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.u
-ser_id = ?");
+    $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
     $groupStmt->execute([$_SESSION['user_id']]);
     $groups = $groupStmt->fetchAll();
 
@@ -65,10 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $dueDateTime->setTimezone(new DateTimeZone('UTC'));
             $reminderPreference = !empty($reminderPreference) ? $reminderPreference : NULL;
 
-            $stmt = $pdo->prepare("INSERT INTO tasks (user_id, group_id, summary, due_date, reminder_preference, details, receive_co
-mpletion_email) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$_SESSION['user_id'], $groupId, $taskName, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $ta
-skDetails, $receiveCompletionEmail]);
+            $stmt = $pdo->prepare("INSERT INTO tasks (user_id, group_id, summary, due_date, reminder_preference, details, receive_completion_email) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $groupId, $taskName, $dueDateTime->format('Y-m-d H:i:s'), $reminderPreference, $taskDetails, $receiveCompletionEmail]);
 
             $taskId = $pdo->lastInsertId();
 
