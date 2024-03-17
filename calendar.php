@@ -10,8 +10,7 @@ if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     exit();
 } elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
     $rememberToken = $_COOKIE['rememberMe'];
-    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token = ?"
-);
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token = ?");
     $userStmt->execute([$rememberToken]);
     $userDetails = $userStmt->fetch();
 
@@ -86,11 +85,9 @@ $nextYear = date('Y', strtotime('+1 month', strtotime("$currentYear-$currentMont
     <div class="calendar-container">
         <h1>Calendar</h1>
         <div class="month-navigation">
-            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn cale
-ndar-navigation-btn previous-month">Previous</button>
+            <button onclick="location.href='?year=<?php echo $previousYear; ?>&month=<?php echo $previousMonth; ?>'" class="btn calendar-navigation-btn previous-month">Previous</button>
             <span><?php echo date('F Y', strtotime("$currentYear-$currentMonth-01")); ?></span>
-            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-nav
-igation-btn next-month">Next</button>
+            <button onclick="location.href='?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>'" class="btn calendar-navigation-btn next-month">Next</button>
         </div>
         <div class="calendar">
             <table>
@@ -140,8 +137,7 @@ igation-btn next-month">Next</button>
                                     } else {
                                         $taskClass .= 'task-urgency-green';
                                     }
-                                    echo "<div class='{$taskClass}'><a href='edit_task.php?id={$task['id']}' class='task-name'>" . h
-tmlspecialchars($task['summary']) . "</a></div>";
+                                    echo "<div class='{$taskClass}'><a href='edit_task.php?id={$task['id']}' class='task-name'>" . htmlspecialchars($task['summary']) . "</a></div>";
                                 }
                             }
                             echo "</div>";
