@@ -71,14 +71,12 @@ try {
     $users = $usersStmt->fetchAll();
 
     $isSuperAdmin = $userRole === 'super_admin';
-    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user
-_id = u.id WHERE u.role = 'super_admin')";
+    $exclusionQuery = $isSuperAdmin ? "" : "WHERE id NOT IN (SELECT group_id FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin')";
     $groupsStmt = $pdo->prepare("SELECT id, name FROM user_groups $exclusionQuery");
     $groupsStmt->execute();
     $groups = $groupsStmt->fetchAll();
 
-    $membershipQuery = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHE
-RE m.user_id = ?");
+    $membershipQuery = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($_SESSION['csrf_token'] !== $_POST['csrf_token']) {
@@ -102,8 +100,7 @@ RE m.user_id = ?");
                     break;
                 case 'assign_user':
                     if (isset($_POST['user_id'], $_POST['group_id'])) {
-                        $assignStmt = $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?) ON DUPLICATE KE
-Y UPDATE group_id = VALUES(group_id)");
+                        $assignStmt = $pdo->prepare("INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE group_id = VALUES(group_id)");
                         $assignStmt->execute([$_POST['user_id'], $_POST['group_id']]);
                         $successMessage = "User assigned to group successfully.";
                     }
@@ -195,8 +192,7 @@ function handleGroupDeletion($pdo, $groupId, $groupsStmt) {
 }
 
 function groupHasSuperAdmin($pdo, $groupId) {
-    $query = $pdo->prepare("SELECT COUNT(*) FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_
-admin' AND gm.group_id = ?");
+    $query = $pdo->prepare("SELECT COUNT(*) FROM group_memberships gm INNER JOIN users u ON gm.user_id = u.id WHERE u.role = 'super_admin' AND gm.group_id = ?");
     $query->execute([$groupId]);
     return $query->fetchColumn() > 0;
 }
@@ -217,8 +213,7 @@ admin' AND gm.group_id = ?");
             User Registration:
             <input type="hidden" name="action" value="toggle_registration">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-            <input type="checkbox" name="registration_status" <?php echo $registrationEnabled ? 'checked' : ''; ?> onchange="this.fo
-rm.submit()">
+            <input type="checkbox" name="registration_status" <?php echo $registrationEnabled ? 'checked' : ''; ?> onchange="this.form.submit()">
         </form>
 
         <form action="manage_users.php" method="post">
@@ -299,8 +294,7 @@ rm.submit()">
                                 </select>
                                 <input type="hidden" name="action" value="update_timezone">
                                 <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']);
-?>">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <button type="submit" class="btn">Update Timezone</button>
                             </form>
                             <?php else: ?>
@@ -313,14 +307,12 @@ rm.submit()">
                             $userGroups = $membershipQuery->fetchAll();
                             foreach ($userGroups as $group) {
                                 echo htmlspecialchars($group['name']) . "<br>";
-                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role']
-!== 'super_admin' && !groupHasSuperAdmin($pdo, $group['id']))) {
+                                if ($isSuperAdmin || $user['id'] == $_SESSION['user_id'] || ($userRole === 'admin' && $user['role'] !== 'super_admin' && !groupHasSuperAdmin($pdo, $group['id']))) {
                                     echo "<form action='manage_users.php' method='post'>
                                         <input type='hidden' name='action' value='remove_from_group'>
                                         <input type='hidden' name='user_id' value='{$user['id']}'>
                                         <input type='hidden' name='group_id' value='{$group['id']}'>
-                                        <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token'])
-. "'>
+                                        <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token']) . "'>
                                         <button type='submit' class='btn'>Remove from {$group['name']}</button>
                                     </form>";
                                 }
@@ -334,24 +326,21 @@ rm.submit()">
                                     <form action="manage_users.php" method="post">
                                         <input type="hidden" name="action" value="demote_user">
                                         <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_to
-ken']); ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                         <button type="submit" class="btn">Demote to User</button>
                                     </form>
                                 <?php else: ?>
                                     <form action="manage_users.php" method="post">
                                         <input type="hidden" name="action" value="make_admin">
                                         <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_to
-ken']); ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                         <button type="submit" class="btn">Make Admin</button>
                                     </form>
                                 <?php endif; ?>
                                 <form action="manage_users.php" method="post">
                                     <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'
-]); ?>">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <button type="submit" class="btn">Delete</button>
                                 </form>
                             <?php endif; ?>
