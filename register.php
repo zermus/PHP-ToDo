@@ -3,6 +3,11 @@ session_start();
 
 require 'config.php';
 
+// Generate CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Redirect to main.php if already logged in
 if (isset($_SESSION['user_id']) || isset($_COOKIE['rememberMe'])) {
     header('Location: main.php');
@@ -33,49 +38,57 @@ $settingsStmt = $pdo->prepare("SELECT value FROM settings WHERE name = 'user_reg
 $settingsStmt->execute();
 $registrationEnabled = $settingsStmt->fetchColumn() === '1';
 
-if (isset($_POST['register']) && $registrationEnabled) {
-    // Honeypot field check
-    if (!empty($_POST['faxNumber'])) {
-        exit('No bots allowed!');
-    }
-
-    // Sanitize and validate input data
-    $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
-    $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
-    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
-    $password = filter_input(INPUT_POST, 'password', FILTER_SANITIZE_STRING);
-    $verifyPassword = filter_input(INPUT_POST, 'verifyPassword', FILTER_SANITIZE_STRING);
-    $timezone = filter_input(INPUT_POST, 'timezone', FILTER_SANITIZE_STRING);
-
-    if ($password !== $verifyPassword) {
-        $message = "The passwords do not match. Please try again.";
-    } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/", $password)) {
-        $message = "Password must meet the requirements.";
+if (isset($_POST['register'], $_POST['csrf_token']) && $registrationEnabled) {
+    // CSRF token validation
+    if ($_SESSION['csrf_token'] !== $_POST['csrf_token']) {
+        $message = "CSRF token mismatch.";
     } else {
-        try {
-            $userCheckStmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
-            $userCheckStmt->execute([$username, $email]);
-            if ($userCheckStmt->fetch()) {
-                $message = "Username or Email already exists.";
-            } else {
-                $verificationToken = bin2hex(random_bytes(16));
-                $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) VALUES (?, ?, ?, ?, 'user', ?, ?)");
-                $stmt->execute([$name, $username, $email, $passwordHash, $verificationToken, $timezone]);
+        // Honeypot field check
+        if (!empty($_POST['faxNumber'])) {
+            exit('No bots allowed!');
+        }
 
-                $verificationLink = $base_url . "verify.php?token=" . $verificationToken;
-                $subject = "Verify Your Email";
-                $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:\n$verificationLink\n\nThank you!";
-                $headers = "From: " . $from_email;
+        // Sanitize and validate input data
+        $name = trim(filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING));
+        $username = trim(filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING));
+        $email = trim(filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL));
+        $password = trim(filter_input(INPUT_POST, 'password', FILTER_SANITIZE_STRING));
+        $verifyPassword = trim(filter_input(INPUT_POST, 'verifyPassword', FILTER_SANITIZE_STRING));
+        $timezone = trim(filter_input(INPUT_POST, 'timezone', FILTER_SANITIZE_STRING));
 
-                if (mail($email, $subject, $emailMessage, $headers)) {
-                    $successMessage = "Registration successful! Please check your email to verify your account.";
+        if ($password !== $verifyPassword) {
+            $message = "The passwords do not match. Please try again.";
+        } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/", $password)) {
+            $message = "Password must meet the requirements.";
+        } else {
+            try {
+                $userCheckStmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
+                $userCheckStmt->execute([$username, $email]);
+                if ($userCheckStmt->fetch()) {
+                    $message = "Username or Email already exists.";
                 } else {
-                    $message = "Registration completed, but the verification email could not be sent. Please check your server's email settings.";
+                    $verificationToken = bin2hex(random_bytes(16));
+                    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+                    $stmt = $pdo->prepare("INSERT INTO users (name, username, email, password, role, verification_token, timezone) V
+ALUES (?, ?, ?, ?, 'user', ?, ?)");
+                    $stmt->execute([$name, $username, $email, $passwordHash, $verificationToken, $timezone]);
+
+                    $verificationLink = $base_url . "verify.php?token=" . $verificationToken;
+                    $subject = "Verify Your Email";
+                    $emailMessage = "Hello $name,\n\nPlease click the following link to verify your email and activate your account:
+\n$verificationLink\n\nThank you!";
+                    $headers = "From: " . $from_email;
+
+                    if (mail($email, $subject, $emailMessage, $headers)) {
+                        $successMessage = "Registration successful! Please check your email to verify your account.";
+                    } else {
+                        $message = "Registration completed, but the verification email could not be sent. Please check your server's
+ email settings.";
+                    }
                 }
+            } catch (PDOException $e) {
+                $message = "Registration failed: " . $e->getMessage();
             }
-        } catch (PDOException $e) {
-            $message = "Registration failed: " . $e->getMessage();
         }
     }
 }
@@ -151,6 +164,7 @@ if (isset($_POST['register']) && $registrationEnabled) {
                 <div style="display:none;">
                     <input type="text" name="faxNumber" id="faxNumber" placeholder="Leave this field empty">
                 </div>
+                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                 <input type="text" name="name" placeholder="Name" required>
                 <input type="text" name="username" placeholder="Username" required>
                 <input type="email" name="email" placeholder="Email" required>
@@ -192,7 +206,6 @@ if (isset($_POST['register']) && $registrationEnabled) {
                 <?php echo $successMessage; ?>
             </div>
         <?php endif; ?>
-        <!-- Back button -->
         <div style="margin-top: 20px;">
             <a href="login.php" class="btn">Back to Login</a>
         </div>
