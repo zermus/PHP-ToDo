@@ -5,13 +5,18 @@ require 'config.php';
 $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+// CSRF token generation
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
     exit();
 } elseif (!isset($_SESSION['user_id']) && isset($_COOKIE['rememberMe'])) {
     $rememberToken = $_COOKIE['rememberMe'];
-    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token =
- ?");
+    $userStmt = $pdo->prepare("SELECT id, name, role, timezone, urgency_green, urgency_critical FROM users WHERE remember_token = ?"
+);
     $userStmt->execute([$rememberToken]);
     $userDetails = $userStmt->fetch();
     if ($userDetails) {
@@ -37,8 +42,8 @@ $urgencyGreen = $userDetails['urgency_green'];
 $urgencyCritical = $userDetails['urgency_critical'];
 
 $groupTaskIds = [];
-$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm
-.group_id INNER JOIN user_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
+$groupTasksStmt = $pdo->prepare("SELECT t.*, g.name as group_name FROM tasks t INNER JOIN group_memberships gm ON t.group_id = gm.gr
+oup_id INNER JOIN user_groups g ON gm.group_id = g.id WHERE gm.user_id = ? AND t.completed = FALSE ORDER BY t.due_date ASC");
 $groupTasksStmt->execute([$_SESSION['user_id']]);
 $groupTasks = $groupTasksStmt->fetchAll();
 
@@ -54,8 +59,8 @@ foreach ($groupTasks as $task) {
 
 $tasksWithChecklist = [];
 $placeholders = implode(',', array_fill(0, count($groupTaskIds), '?'));
-$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders)
- " : "") . "ORDER BY due_date ASC";
+$query = "SELECT * FROM tasks WHERE user_id = ? AND completed = FALSE " . (!empty($groupTaskIds) ? "AND id NOT IN ($placeholders)" :
+ "") . "ORDER BY due_date ASC";
 $params = array_merge([$_SESSION['user_id']], $groupTaskIds);
 $taskStmt = $pdo->prepare($query);
 $taskStmt->execute($params);
@@ -70,6 +75,12 @@ foreach ($personalTasks as $task) {
 }
 
 if (isset($_GET['logout'])) {
+    // CSRF token check for logout action
+    if (!isset($_GET['csrf_token']) || $_GET['csrf_token'] !== $_SESSION['csrf_token']) {
+        echo "CSRF token mismatch.";
+        exit;
+    }
+
     session_unset();
     session_destroy();
     setcookie('rememberMe', '', time() - 3600, '/');
@@ -128,8 +139,8 @@ if (isset($_GET['logout'])) {
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskComp
-letion(this, <?php echo $task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskComplet
+ion(this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                     <?php if (!empty($task['checklist_items'])): ?>
@@ -137,9 +148,8 @@ letion(this, <?php echo $task['id']; ?>)">
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-
-task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>, <?php echo $task['i
-d']; ?>)">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-tas
+k-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>)">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -184,8 +194,8 @@ d']; ?>)">
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
                     <?php echo htmlspecialchars($task['summary']) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
-                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskComp
-letion(this, <?php echo $task['id']; ?>)">
+                    <button type="button" class="complete-task" data-task-id="<?php echo $task['id']; ?>" onclick="toggleTaskComplet
+ion(this, <?php echo $task['id']; ?>)">
                         <?php echo $task['completed'] ? 'Uncomplete Task' : 'Complete Task'; ?>
                     </button>
                     <?php if (!empty($task['checklist_items'])): ?>
@@ -193,9 +203,8 @@ letion(this, <?php echo $task['id']; ?>)">
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
                             <?php echo htmlspecialchars($item['content']); ?>
-                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-
-task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>, <?php echo $task['i
-d']; ?>)">
+                            <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-tas
+k-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>)">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
                         </li>
@@ -211,7 +220,7 @@ d']; ?>)">
 
         <div class="logout-container" style="margin-top: 20px;">
             <a href="calendar.php" class="btn">Calendar</a>
-            <a href="?logout" class="btn">Logout</a>
+            <a href="?logout&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" class="btn">Logout</a>
         </div>
     </div>
     <script>
@@ -223,13 +232,37 @@ d']; ?>)">
         fetch('task_complete.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'task_id=' + taskId + '&completed=' + isCompleted
+            body: 'task_id=' + taskId + '&completed=' + isCompleted + '&csrf_token=' + encodeURIComponent('<?php echo $_SESSION['csr
+f_token']; ?>')
         })
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                taskElement.classList.toggle('task-completed');
-                button.textContent = taskElement.classList.contains('task-completed') ? 'Uncomplete Task' : 'Complete Task';
+                taskElement.classList.toggle('task-completed', !isCompleted);
+                button.textContent = isCompleted ? 'Complete Task' : 'Uncomplete Task';
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+    }
+
+    function toggleChecklistItemCompletion(button, itemId) {
+        const itemElement = document.getElementById('item-' + itemId);
+        const isCompleted = !itemElement.classList.contains('completed');
+        fetch('checklist_item_complete.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'item_id=' + itemId + '&is_completed=' + (isCompleted ? 1 : 0) + '&csrf_token=' + encodeURIComponent('<?php echo $
+_SESSION['csrf_token']; ?>')
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                itemElement.classList.toggle('completed', isCompleted);
+                button.textContent = isCompleted ? 'Uncomplete' : 'Complete';
+            } else {
                 alert('Error: ' + data.error);
             }
         })
@@ -240,27 +273,9 @@ d']; ?>)">
 
     document.addEventListener("DOMContentLoaded", function() {
         document.querySelectorAll('.complete-checklist-item').forEach(button => {
+            button.removeEventListener('click');
             button.addEventListener('click', function() {
-                const itemId = this.getAttribute('data-item-id');
-                const itemElement = document.getElementById('item-' + itemId);
-                const isCompleted = itemElement.classList.contains('completed');
-                fetch('checklist_item_complete.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'item_id=' + itemId + '&is_completed=' + (!isCompleted ? 1 : 0)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        itemElement.classList.toggle('completed');
-                        this.textContent = itemElement.classList.contains('completed') ? 'Complete' : 'Uncomplete';
-                    } else {
-                        alert('Error: ' + data.error);
-                    }
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                });
+                toggleChecklistItemCompletion(this, this.getAttribute('data-item-id'));
             });
         });
     });
