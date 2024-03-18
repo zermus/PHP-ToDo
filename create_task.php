@@ -180,16 +180,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         function toggleTaskType() {
             var isChecklist = document.getElementById('isChecklist').checked;
             var checklistContainer = document.getElementById('checklistContainer');
-            var taskDetailsContainer = document.getElementById('taskDetailsContainer');
             if (isChecklist) {
-                taskDetailsContainer.style.display = 'none';
                 checklistContainer.style.display = 'block';
                 if (document.getElementById('checklistItems').children.length === 0) {
                     addChecklistItem();
                 }
             } else {
                 checklistContainer.style.display = 'none';
-                taskDetailsContainer.style.display = 'block';
             }
         }
 
