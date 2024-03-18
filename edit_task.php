@@ -170,7 +170,7 @@ function inGroup($pdo, $userId, $groupId) {
             </div>
 
             <!-- Task Details -->
-            <div id="taskDetailsContainer" class="form-group" style="<?php echo $isChecklist ? 'display:none;' : ''; ?>">
+            <div id="taskDetailsContainer" class="form-group">
                 <label for="taskDetails">Task Details:</label>
                 <textarea id="taskDetails" name="taskDetails" rows="8" style="width: 100%;"><?php echo htmlspecialchars($taskDetails); ?></textarea>
             </div>
@@ -244,16 +244,13 @@ function inGroup($pdo, $userId, $groupId) {
         function toggleTaskType() {
             var isChecklist = document.getElementById('isChecklist').checked;
             var checklistContainer = document.getElementById('checklistContainer');
-            var taskDetailsContainer = document.getElementById('taskDetailsContainer');
             if (isChecklist) {
-                taskDetailsContainer.style.display = 'none';
                 checklistContainer.style.display = 'block';
                 if (document.getElementById('checklistItems').children.length === 0) {
                     addChecklistItem();
                 }
             } else {
                 checklistContainer.style.display = 'none';
-                taskDetailsContainer.style.display = 'block';
             }
         }
 
