@@ -135,10 +135,10 @@ if (isset($_GET['logout'])) {
                     }
                 ?>
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
-                    <?php echo preg_replace('@(https?://[^\s]+)@', '<a href="$1" target="_blank">$1</a>', htmlspecialchars($task['summary'])) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
+                    <div class="task-summary"><?php echo $task['summary']; ?></div>
                     <?php if (!empty($task['details'])): ?>
                     <div class="task-details" style="max-height: 100px; overflow-y: auto;">
-                        <?php echo preg_replace('@(https?://[^\s]+)@', '<a href="$1" target="_blank">$1</a>', htmlspecialchars($task['details'])); ?>
+                        <?php echo $task['details']; ?>
                     </div>
                     <?php endif; ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
@@ -149,7 +149,14 @@ if (isset($_GET['logout'])) {
                     <ul>
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
-                            <?php echo preg_replace('@(https?://[^\s]+)@', '<a href="$1" target="_blank">$1</a>', htmlspecialchars($item['content'])); ?>
+                            <?php
+                            // Check if the item content is a URL
+                            if (filter_var($item['content'], FILTER_VALIDATE_URL)) {
+                                echo '<a href="' . htmlspecialchars($item['content']) . '" target="_blank">' . htmlspecialchars($item['content']) . '</a>';
+                            } else {
+                                echo htmlspecialchars($item['content']);
+                            }
+                            ?>
                             <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>)">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
@@ -164,8 +171,8 @@ if (isset($_GET['logout'])) {
         </div>
 
         <!-- Group Tasks -->
+        <?php foreach ($groupTasksWithChecklist as $groupName => $tasks): ?>
         <div class="task-container">
-            <?php foreach ($groupTasksWithChecklist as $groupName => $tasks): ?>
             <h2><?php echo htmlspecialchars($groupName); ?>'s Tasks</h2>
             <?php if (empty($tasks)): ?>
             <p>No tasks available.</p>
@@ -173,7 +180,7 @@ if (isset($_GET['logout'])) {
             <ul class="task-list">
                 <?php foreach ($tasks as $task): ?>
                 <?php
-                    // Repeat the due date calculation and class assignment logic for each task
+                    // Repeating the urgency logic for group tasks
                     $dueDateTime = new DateTime($task['due_date'], new DateTimeZone('UTC'));
                     $dueDateTime->setTimezone($userTimezone);
                     $now = new DateTime("now", $userTimezone);
@@ -194,10 +201,10 @@ if (isset($_GET['logout'])) {
                     }
                 ?>
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
-                    <?php echo preg_replace('@(https?://[^\s]+)@', '<a href="$1" target="_blank">$1</a>', htmlspecialchars($task['summary'])) . " - Due: " . $dueDateTime->format('Y-m-d h:i A'); ?>
+                    <div class="task-summary"><?php echo $task['summary']; ?></div>
                     <?php if (!empty($task['details'])): ?>
                     <div class="task-details" style="max-height: 100px; overflow-y: auto;">
-                        <?php echo preg_replace('@(https?://[^\s]+)@', '<a href="$1" target="_blank">$1</a>', htmlspecialchars($task['details'])); ?>
+                        <?php echo $task['details']; ?>
                     </div>
                     <?php endif; ?>
                     <a href="edit_task.php?id=<?php echo $task['id']; ?>" class="edit-link">Edit</a>
@@ -208,7 +215,14 @@ if (isset($_GET['logout'])) {
                     <ul>
                         <?php foreach ($task['checklist_items'] as $item): ?>
                         <li id="item-<?php echo $item['id']; ?>" class="<?php echo $item['completed'] ? 'completed' : ''; ?>">
-                            <?php echo preg_replace('@(https?://[^\s]+)@', '<a href="$1" target="_blank">$1</a>', htmlspecialchars($item['content'])); ?>
+                            <?php
+                            // Check if the item content is a URL
+                            if (filter_var($item['content'], FILTER_VALIDATE_URL)) {
+                                echo '<a href="' . htmlspecialchars($item['content']) . '" target="_blank">' . htmlspecialchars($item['content']) . '</a>';
+                            } else {
+                                echo htmlspecialchars($item['content']);
+                            }
+                            ?>
                             <button type="button" class="complete-checklist-item" data-item-id="<?php echo $item['id']; ?>" data-task-id="<?php echo $task['id']; ?>" onclick="toggleChecklistItemCompletion(this, <?php echo $item['id']; ?>)">
                                 <?php echo $item['completed'] ? 'Uncomplete' : 'Complete'; ?>
                             </button>
@@ -220,8 +234,8 @@ if (isset($_GET['logout'])) {
                 <?php endforeach; ?>
             </ul>
             <?php endif; ?>
-            <?php endforeach; ?>
         </div>
+        <?php endforeach; ?>
 
         <div class="logout-container" style="margin-top: 20px;">
             <a href="calendar.php" class="btn">Calendar</a>
