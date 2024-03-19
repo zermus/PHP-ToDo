@@ -47,12 +47,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $errorMessage = 'CSRF token mismatch.';
     } else {
         $taskName = filter_input(INPUT_POST, 'taskName', FILTER_SANITIZE_STRING);
-        $taskDetails = filter_input(INPUT_POST, 'taskDetails', FILTER_SANITIZE_STRING);
+        // Retrieve raw post data
+        $rawTaskDetails = $_POST['taskDetails'] ?? '';
+        // Allowed tags for Quill 'snow' theme
+        $allowedTags = '<p><strong><em><u><a><ul><ol><li><br><h1><h2><h3><blockquote><code><div><s><strike>';
+        // Sanitize the task details
+        $taskDetails = strip_tags($rawTaskDetails, $allowedTags);
+
         $dueDate = filter_input(INPUT_POST, 'dueDate', FILTER_SANITIZE_STRING);
         $dueTime = filter_input(INPUT_POST, 'dueTime', FILTER_SANITIZE_STRING);
         $reminderPreference = filter_input(INPUT_POST, 'reminderPreference', FILTER_SANITIZE_STRING);
         $isChecklist = isset($_POST['isChecklist']) ? 1 : 0;
-        $checklistItems = isset($_POST['checklist']) ? $_POST['checklist'] : [];
+        $checklistItems = $_POST['checklist'] ?? [];
         $groupId = !empty($_POST['group_id']) ? $_POST['group_id'] : null;
         $receiveCompletionEmail = isset($_POST['receiveCompletionEmail']) ? 1 : 0;
 
@@ -71,9 +77,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             if ($isChecklist) {
                 $checklistStmt = $pdo->prepare("INSERT INTO checklist_items (task_id, content) VALUES (?, ?)");
-                foreach ($checklistItems as $item) {
-                    if (!empty($item)) {
-                        $checklistStmt->execute([$taskId, $item]);
+                foreach ($checklistItems as $itemContent) {
+                    // Sanitize each checklist item individually
+                    $itemContent = strip_tags($itemContent, $allowedTags);
+                    if (!empty($itemContent)) {
+                        $checklistStmt->execute([$taskId, $itemContent]);
                     }
                 }
             }
@@ -92,6 +100,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Task</title>
     <link rel="stylesheet" href="stylesheet.css">
+    <!-- Include Quill library from CDN -->
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+    <!-- Include DOMPurify from its CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -112,10 +124,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <label for="isChecklist">Is this a checklist?</label>
             </div>
 
-            <!-- Task Details -->
+            <!-- Task Details (Rich Text Editor) -->
             <div id="taskDetailsContainer" class="form-group">
                 <label for="taskDetails">Task Details:</label>
-                <textarea id="taskDetails" name="taskDetails" rows="8" style="width: 100%;"></textarea>
+                <div id="editor"></div>
+                <textarea name="taskDetails" id="taskDetails" style="display:none;"></textarea>
             </div>
 
             <!-- Checklist Container -->
@@ -154,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <label for="receiveCompletionEmail">Receive email upon task completion</label>
             </div>
 
-            <!-- Group Assignment Dropdown (visible only if user is part of a group) -->
+            <!-- Group Assignment Dropdown -->
             <?php if (!empty($groups)): ?>
             <div class="form-group">
                 <label for="group_id">Assign to Group:</label>
@@ -176,7 +189,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <?php endif; ?>
     </div>
 
+    <!-- Include Quill JS -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+
     <script>
+        var quill = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{'list': 'ordered'}, {'list': 'bullet'}],
+                    [{'indent': '-1'}, {'indent': '+1'}],
+                    [{'size': ['small', false, 'large', 'huge']}],
+                    [{'align': []}],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // Set the default text alignment to center
+        quill.format('align', 'center');
+
+        document.querySelector('form').onsubmit = function() {
+            var html = quill.root.innerHTML;
+            var cleanHtml = DOMPurify.sanitize(html);
+            document.querySelector('textarea[name="taskDetails"]').value = cleanHtml;
+        };
+
         function toggleTaskType() {
             var isChecklist = document.getElementById('isChecklist').checked;
             var checklistContainer = document.getElementById('checklistContainer');
