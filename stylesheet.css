@@ -25,6 +25,48 @@ body {
     margin: auto; /* Center the container horizontally */
 }
 
+#taskName {
+    text-align: center;
+}
+
+.task-details {
+    text-align: start;
+    max-height: 50px; /* Adjust based on your preference */
+    overflow-y: auto;
+    margin: 5px 0;
+    background-color: #595959;
+    color: #fff;
+    padding: 5px;
+    border-radius: 3px;
+    transition: max-height 0.3s ease;
+}
+
+.task-details:hover {
+    max-height: 200px; /* Adjust based on your preference */
+}
+
+/* Customizing Quill Editor's Options */
+.ql-toolbar {
+    background-color: #a6a6a6; /* Light grey background */
+    border-bottom: 1px solid #ccc; /* Light grey border for a subtle separation */
+}
+
+.ql-align-center {
+    text-align: center;
+}
+
+.ql-align-right {
+    text-align: right;
+}
+
+.ql-align-left {
+    text-align: left;
+}
+
+.ql-align-justify {
+    text-align: justify;
+}
+
 /* Input Styles */
 input[type="text"], input[type="email"], input[type="password"], select {
     width: 90%;
