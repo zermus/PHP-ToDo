@@ -7,15 +7,8 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// Database connection function
-function connectToDatabase($host, $dbname, $db_username, $db_password) {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    return $pdo;
-}
-
-// Call this function to establish a database connection
-$pdo = connectToDatabase($host, $dbname, $db_username, $db_password);
+$pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_username, $db_password);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
     header('Location: login.php');
@@ -37,7 +30,6 @@ if (!isset($_SESSION['user_id']) && !isset($_COOKIE['rememberMe'])) {
 $errorMessage = '';
 
 if (isset($_SESSION['user_id'])) {
-    // Fetch groups the user is part of
     $groupStmt = $pdo->prepare("SELECT g.id, g.name FROM user_groups g INNER JOIN group_memberships m ON g.id = m.group_id WHERE m.user_id = ?");
     $groupStmt->execute([$_SESSION['user_id']]);
     $groups = $groupStmt->fetchAll();
@@ -90,9 +82,12 @@ if (isset($_SESSION['user_id'])) {
     }
 
     try {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST' && $authorized && $_SESSION['csrf_token'] === $_POST['csrf_token']) {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && $authorized && $_POST['csrf_token'] === $_SESSION['csrf_token']) {
             $taskName = filter_input(INPUT_POST, 'taskName', FILTER_SANITIZE_STRING);
-            $taskDetails = filter_input(INPUT_POST, 'taskDetails', FILTER_SANITIZE_STRING);
+            $rawTaskDetails = $_POST['taskDetails'] ?? '';
+            $allowedTags = '<p><strong><em><u><a><ul><ol><li><br><h1><h2><h3><blockquote><code><div><s><strike>';
+            $taskDetails = strip_tags($rawTaskDetails, $allowedTags);
+
             $dueDate = filter_input(INPUT_POST, 'dueDate', FILTER_SANITIZE_STRING);
             $dueTime = filter_input(INPUT_POST, 'dueTime', FILTER_SANITIZE_STRING);
             $reminderPreference = filter_input(INPUT_POST, 'reminderPreference', FILTER_SANITIZE_STRING);
@@ -117,9 +112,10 @@ $taskId]);
             if ($isChecklist) {
                 $pdo->exec("DELETE FROM checklist_items WHERE task_id = $taskId");
                 $insertStmt = $pdo->prepare("INSERT INTO checklist_items (task_id, content) VALUES (?, ?)");
-                foreach ($checklistItems as $item) {
-                    if (!empty($item)) {
-                        $insertStmt->execute([$taskId, $item]);
+                foreach ($checklistItems as $itemContent) {
+                    $itemContent = strip_tags($itemContent, $allowedTags);
+                    if (!empty($itemContent)) {
+                        $insertStmt->execute([$taskId, $itemContent]);
                     }
                 }
             }
@@ -146,6 +142,10 @@ function inGroup($pdo, $userId, $groupId) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Task</title>
     <link rel="stylesheet" href="stylesheet.css">
+    <!-- Include Quill library from CDN -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <!-- Include DOMPurify from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.3.3/dist/purify.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -169,10 +169,11 @@ function inGroup($pdo, $userId, $groupId) {
                 <label for="isChecklist">Is this a checklist?</label>
             </div>
 
-            <!-- Task Details -->
+            <!-- Task Details (Rich Text Editor) -->
             <div id="taskDetailsContainer" class="form-group">
                 <label for="taskDetails">Task Details:</label>
-                <textarea id="taskDetails" name="taskDetails" rows="8" style="width: 100%;"><?php echo htmlspecialchars($taskDetails); ?></textarea>
+                <div id="editor"></div>
+                <textarea name="taskDetails" id="taskDetails" style="display:none;"></textarea>
             </div>
 
             <!-- Checklist Container -->
@@ -198,7 +199,7 @@ function inGroup($pdo, $userId, $groupId) {
             <div class="form-group">
                 <label for="reminderPreference">Reminder Preference:</label>
                 <select id="reminderPreference" name="reminderPreference">
-                    <option value="" <?php echo ($reminderPreference === '' ? 'selected' : ''); ?>>None</option>
+                    <option value="">None</option>
                     <option value="15m" <?php echo ($reminderPreference === '15m' ? 'selected' : ''); ?>>15 minutes before</option>
                     <option value="30m" <?php echo ($reminderPreference === '30m' ? 'selected' : ''); ?>>30 minutes before</option>
                     <option value="1h" <?php echo ($reminderPreference === '1h' ? 'selected' : ''); ?>>1 hour before</option>
@@ -240,17 +241,52 @@ function inGroup($pdo, $userId, $groupId) {
         <?php endif; ?>
     </div>
 
+    <!-- Include Quill JS -->
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    <!-- Include DOMPurify from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+
     <script>
+        var quill = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{'list': 'ordered'}, {'list': 'bullet'}],
+                    [{'indent': '-1'}, {'indent': '+1'}],
+                    [{'size': ['small', false, 'large', 'huge']}],
+                    [{'align': []}],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // When the form is submitted, populate the hidden textarea with
+        // the sanitized content of the rich text editor.
+        document.querySelector('form').onsubmit = function() {
+            var html = quill.root.innerHTML;
+            var cleanHtml = DOMPurify.sanitize(html);
+            document.querySelector('textarea[name="taskDetails"]').value = cleanHtml;
+        };
+
+        // Load existing task details into Quill editor
+        window.onload = function() {
+            var taskDetailsValue = <?php echo json_encode($taskDetails); ?>;
+            quill.root.innerHTML = taskDetailsValue;
+        };
+
         function toggleTaskType() {
             var isChecklist = document.getElementById('isChecklist').checked;
             var checklistContainer = document.getElementById('checklistContainer');
+            var taskDetailsContainer = document.getElementById('taskDetailsContainer');
             if (isChecklist) {
+                taskDetailsContainer.style.display = 'none';
                 checklistContainer.style.display = 'block';
-                if (document.getElementById('checklistItems').children.length === 0) {
-                    addChecklistItem();
-                }
             } else {
                 checklistContainer.style.display = 'none';
+                taskDetailsContainer.style.display = 'block';
             }
         }
 
