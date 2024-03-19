@@ -135,7 +135,12 @@ if (isset($_GET['logout'])) {
                     }
                 ?>
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
-                    <div class="task-summary"><?php echo $task['summary']; ?></div>
+                     <div class="task-summary">
+                         <?php echo htmlspecialchars($task['summary']); ?>
+                         <br>
+                         <span class="due-date">Due on <?php echo $dueDateTime->format('m-d-Y h:i A'); ?></span>
+                    </div>
+
                     <?php if (!empty($task['details'])): ?>
                     <div class="task-details" style="max-height: 100px; overflow-y: auto;">
                         <?php echo $task['details']; ?>
@@ -201,7 +206,12 @@ if (isset($_GET['logout'])) {
                     }
                 ?>
                 <li id="task-<?php echo $task['id']; ?>" class="<?php echo $taskClass; ?>">
-                    <div class="task-summary"><?php echo $task['summary']; ?></div>
+                    <div class="task-summary">
+                        <?php echo htmlspecialchars($task['summary']); ?>
+                        <br>
+                        <span class="due-date">Due on <?php echo $dueDateTime->format('m-d-Y h:i A'); ?></span>
+                    </div>
+
                     <?php if (!empty($task['details'])): ?>
                     <div class="task-details" style="max-height: 100px; overflow-y: auto;">
                         <?php echo $task['details']; ?>
