@@ -24,6 +24,9 @@ if (isset($_POST['install'])) {
     $verifyPassword = $_POST['verifyPassword'];
     $installationPath = filter_input(INPUT_POST, 'installPath', FILTER_SANITIZE_STRING);
 
+    // Remove any trailing slashes and then add a single slash at the end
+    $installationPath = rtrim($installationPath, '/\\') . '/';
+
     // Ensure $base_url ends with a slash
     $base_url = rtrim($base_url, '/') . '/';
 
