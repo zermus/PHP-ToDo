@@ -1,0 +1,431 @@
+/* php-todo 0.97 stylesheet — same dark identity as 0.96, cleaned up. */
+
+:root {
+    --bg: #121212;
+    --surface: #222831;
+    --surface-alt: #333;
+    --surface-detail: #595959;
+    --accent: #00ddff;
+    --text: #c0c0c0;
+    --text-bright: #ffffff;
+    --btn: #4CAF50;
+    --btn-hover: #367c39;
+    --nav-btn: #008CBA;
+    --nav-btn-hover: #005f73;
+    --error: #FF6347;
+    --success: #00FF00;
+    --warn: #FFA500;
+    --urgency-green: #1CD221;
+    --urgency-soon: #FCB300;
+    --urgency-critical: #EE5606;
+    --past-due: #FF0000;
+    --completed: #666699;
+    --current-day: #0047ab;
+}
+
+/* General */
+body {
+    font-family: Arial, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    flex-direction: column;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.container,
+.login-form {
+    background-color: var(--surface);
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 600px;
+    width: min(92vw, 600px);
+    box-sizing: border-box;
+    text-align: center;
+    color: var(--accent);
+    margin: auto;
+}
+
+.container.wide,
+.manage-users-container {
+    max-width: 900px;
+    width: min(92vw, 900px);
+}
+
+/* Flash messages */
+.flash {
+    width: min(92vw, 600px);
+    margin: 0 auto 15px;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: var(--surface);
+    text-align: center;
+    box-sizing: border-box;
+}
+
+/* Task details (rich text) */
+.task-details {
+    text-align: start;
+    max-height: 100px;
+    overflow-y: auto;
+    margin: 5px 0;
+    background-color: var(--surface-detail);
+    color: var(--text-bright);
+    padding: 5px;
+    border-radius: 3px;
+    transition: max-height 0.3s ease;
+}
+
+.task-details:hover {
+    max-height: 200px;
+}
+
+#taskName {
+    text-align: center;
+}
+
+/* Quill editor on dark background */
+.ql-toolbar {
+    background-color: #a6a6a6;
+    border-bottom: 1px solid #ccc;
+}
+
+.ql-container {
+    background-color: var(--surface-alt);
+    color: var(--text-bright);
+}
+
+.ql-editor {
+    min-height: 120px;
+}
+
+.ql-align-center { text-align: center; }
+.ql-align-right  { text-align: right; }
+.ql-align-left   { text-align: left; }
+.ql-align-justify{ text-align: justify; }
+
+/* Inputs */
+input[type="text"], input[type="email"], input[type="password"],
+input[type="datetime-local"], select, textarea {
+    width: 90%;
+    padding: 10px;
+    margin: 10px auto;
+    border-radius: 5px;
+    border: 1px solid var(--accent);
+    background-color: var(--surface-alt);
+    color: var(--text-bright);
+    display: block;
+    box-sizing: border-box;
+}
+
+label {
+    display: inline-block;
+    margin-top: 5px;
+}
+
+.remember-me,
+.checkbox-row {
+    margin: 10px 0;
+}
+
+.remember-me input[type="checkbox"],
+.checkbox-row input[type="checkbox"] {
+    width: auto;
+    display: inline-block;
+    margin: 0 5px 0 0;
+    vertical-align: middle;
+}
+
+/* Buttons */
+button, .btn, .new-task, .manage-users, .edit-link {
+    background-color: var(--btn);
+    color: var(--text-bright);
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: inline-block;
+    text-decoration: none;
+    margin: 5px;
+    font-size: 1em;
+    transition: background-color 0.3s ease;
+}
+
+button:hover, .btn:hover, .new-task:hover, .manage-users:hover, .edit-link:hover {
+    background-color: var(--btn-hover);
+}
+
+button.inline-form-btn {
+    display: inline-block;
+}
+
+form.inline {
+    display: inline;
+}
+
+.button-container {
+    margin-bottom: 10px;
+}
+
+.logout-container {
+    margin-top: 20px;
+}
+
+/* Messages */
+.message, .password-requirements {
+    margin-top: 20px;
+    color: var(--error);
+    font-size: 0.9em;
+}
+
+.success { color: var(--success); }
+.error   { color: var(--error); }
+
+/* Task urgency */
+.task-item {
+    list-style: none;
+}
+
+.task-urgency-green {
+    background-color: var(--urgency-green);
+    color: var(--text-bright);
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.task-urgency-soon {
+    background-color: var(--urgency-soon);
+    color: #404040;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.task-urgency-critical {
+    background-color: var(--urgency-critical);
+    color: #404040;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.task-past-due {
+    background-color: var(--past-due);
+    color: var(--text-bright);
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.task-completed {
+    text-decoration: line-through;
+    background-color: var(--completed);
+    color: var(--text-bright);
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+
+.completed {
+    text-decoration: line-through;
+}
+
+/* Task lists */
+.task-container .task-list {
+    padding: 20px;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+    border-radius: 8px;
+    list-style: none;
+}
+
+.task-list ul {
+    list-style: none;
+    padding-left: 10px;
+}
+
+.task-list ul li {
+    margin: 4px 0;
+}
+
+/* Tables (manage users) */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    border: 1px solid var(--accent);
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background-color: var(--surface-alt);
+}
+
+tr:nth-child(even) {
+    background-color: var(--surface);
+}
+
+/* Calendar */
+.calendar-container {
+    background-color: var(--surface);
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 1200px;
+    width: min(96vw, 1200px);
+    margin: 20px auto;
+    box-sizing: border-box;
+    text-align: center;
+    color: var(--accent);
+}
+
+.calendar {
+    margin-top: 20px;
+    width: 100%;
+    overflow-x: auto;
+}
+
+.calendar table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.calendar th,
+.calendar td {
+    position: relative;
+    padding: 10px;
+    text-align: left;
+    vertical-align: top;
+    overflow-y: auto;
+    min-height: 100px;
+    border: 1px solid var(--surface);
+}
+
+.calendar th {
+    background-color: var(--surface);
+    color: var(--text-bright);
+}
+
+.calendar td {
+    background-color: var(--surface-alt);
+    color: var(--text-bright);
+    height: auto;
+}
+
+.calendar .date-box {
+    min-height: 125px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar .date {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.date.current-day {
+    background-color: var(--current-day);
+}
+
+.calendar .task {
+    padding: 5px;
+    margin-top: 20px;
+    border-radius: 3px;
+}
+
+.calendar-navigation-btn {
+    background-color: var(--nav-btn);
+    color: var(--text-bright);
+    padding: 10px 15px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+.calendar-navigation-btn:hover {
+    background-color: var(--nav-btn-hover);
+}
+
+/* Checklist editor rows */
+.checklist-editor .checklist-row {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.checklist-editor .checklist-row input[type="text"] {
+    flex: 1;
+    width: auto;
+}
+
+/* Responsive */
+@media (max-height: 800px) {
+    .calendar-container {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .calendar td {
+        height: 80px;
+    }
+}
+
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
+    .container,
+    .login-form,
+    .flash {
+        padding: 15px;
+        width: 100%;
+    }
+
+    .button-container .btn,
+    .button-container button,
+    .logout-container .btn {
+        display: block;
+        width: 100%;
+        margin: 5px 0;
+        box-sizing: border-box;
+    }
+
+    input[type="text"], input[type="email"], input[type="password"],
+    input[type="datetime-local"], select, textarea {
+        width: 100%;
+    }
+
+    .calendar th,
+    .calendar td {
+        padding: 4px;
+        font-size: 0.8em;
+    }
+
+    th, td {
+        padding: 4px;
+        font-size: 0.9em;
+    }
+}
