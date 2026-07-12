@@ -138,6 +138,25 @@ function password_meets_policy(string $password): bool
 }
 
 /**
+ * Human label for an urgency threshold in minutes ("2 hours", "1 day").
+ */
+function urgency_label(int $minutes): string
+{
+    if ($minutes >= 1440) {
+        $days = intdiv($minutes, 1440);
+
+        return $days . ' day' . ($days > 1 ? 's' : '');
+    }
+    if ($minutes >= 60) {
+        $hours = intdiv($minutes, 60);
+
+        return $hours . ' hour' . ($hours > 1 ? 's' : '');
+    }
+
+    return $minutes . ' minutes';
+}
+
+/**
  * CSS urgency class for a task row, given minutes until due.
  */
 function task_urgency_class(bool $completed, bool $pastDue, int $minutesToDue, int $urgencyGreen, int $urgencyCritical): string
