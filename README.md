@@ -3,6 +3,8 @@
 A self-hosted to-do list with groups, checklists, rich-text notes, a calendar
 view, and email reminders. Version **0.97**.
 
+📦 **[Download the latest release](https://github.com/zermus/PHP-ToDo/releases)** — grab the ready-to-install tarball from the Releases page.
+
 ## Requirements
 
 - PHP **8.1 or higher** (with `pdo_mysql` and `mbstring` extensions)
@@ -30,7 +32,9 @@ php-todo/
 
 ## Installation
 
-1. **Download and extract** the release tarball into your installation directory.
+1. **Download and extract** the release tarball from the
+   [Releases page](https://github.com/zermus/PHP-ToDo/releases) into your
+   installation directory.
 
 2. **Create your config**: copy `config.sample.php` to `config.php` and fill in
    your database credentials, `base_url`, and mail settings. `config.php` is
