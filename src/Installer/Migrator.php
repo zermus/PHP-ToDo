@@ -21,15 +21,21 @@ final class Migrator
      */
     public function currentVersion(): int
     {
-        if (!$this->tableExists('settings')) {
-            return 0;
+        // Once a schema_version is recorded it is authoritative.
+        if ($this->tableExists('settings')) {
+            $stmt = $this->pdo->prepare("SELECT value FROM settings WHERE name = 'schema_version'");
+            $stmt->execute();
+            $value = $stmt->fetchColumn();
+            if ($value !== false) {
+                return (int) $value;
+            }
         }
 
-        $stmt = $this->pdo->prepare("SELECT value FROM settings WHERE name = 'schema_version'");
-        $stmt->execute();
-        $value = $stmt->fetchColumn();
-
-        return $value === false ? 1 : (int) $value;
+        // No schema_version row. Treat it as a 0.96 install (version 1) only if
+        // the complete baseline schema is present — group_memberships is the
+        // last table created by migration 001. Otherwise it's a fresh (or a
+        // half-built, interrupted) install and 001 must run.
+        return $this->tableExists('group_memberships') ? 1 : 0;
     }
 
     /**

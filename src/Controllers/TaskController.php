@@ -155,7 +155,9 @@ final class TaskController
 
         $taskId = (int) $task['id'];
         $completed = !empty($_POST['completed']) ? 1 : 0;
-        $dueDateChanged = $input['due_date_utc'] !== $task['due_date'];
+        // Re-arm the reminder if the schedule changed (due date OR preference).
+        $scheduleChanged = $input['due_date_utc'] !== $task['due_date']
+            || $input['reminder_preference'] !== $task['reminder_preference'];
 
         $stmt = $pdo->prepare(
             'UPDATE tasks SET summary = ?, group_id = ?, due_date = ?, reminder_preference = ?,
@@ -171,7 +173,7 @@ final class TaskController
             $completed,
             $input['details'],
             $input['receive_completion_email'],
-            $dueDateChanged ? 0 : (int) $task['reminder_sent'],
+            $scheduleChanged ? 0 : (int) $task['reminder_sent'],
             $completed ? (int) $task['completion_email_sent'] : 0,
             $taskId,
         ]);
@@ -275,11 +277,17 @@ final class TaskController
              GROUP BY t.id
              ORDER BY t.due_date ASC'
         );
+        // due_date is stored in UTC; the grid boundaries are local wall-clock
+        // days. Convert the local start-of-first-day and end-of-last-day to UTC
+        // so tasks near the edges aren't dropped for non-UTC users.
+        $rangeStartUtc = (clone $startDayOfWeek)->setTime(0, 0, 0)->setTimezone(new DateTimeZone('UTC'));
+        $rangeEndUtc = (clone $endDayOfWeek)->setTime(23, 59, 59)->setTimezone(new DateTimeZone('UTC'));
+
         $stmt->execute([
             (int) $user['id'],
             (int) $user['id'],
-            $startDayOfWeek->format('Y-m-d'),
-            $endDayOfWeek->format('Y-m-d 23:59:59'),
+            $rangeStartUtc->format('Y-m-d H:i:s'),
+            $rangeEndUtc->format('Y-m-d H:i:s'),
         ]);
 
         $prev = (clone $firstDayOfMonth)->modify('-1 month');

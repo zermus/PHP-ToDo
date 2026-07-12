@@ -75,7 +75,10 @@ final class AdminController
             case 'assign_user':
                 $targetId = (int) ($_POST['user_id'] ?? 0);
                 $groupId = (int) ($_POST['group_id'] ?? 0);
-                if ($targetId > 0 && $groupId > 0 && $this->canManageGroup($pdo, $isSuperAdmin, $groupId)) {
+                if ($targetId > 0 && $groupId > 0
+                    && $this->canManageGroup($pdo, $isSuperAdmin, $groupId)
+                    && ($isSuperAdmin || !$this->isSuperAdminUser($pdo, $targetId))
+                ) {
                     $pdo->prepare('INSERT INTO group_memberships (user_id, group_id) VALUES (?, ?)
                                    ON DUPLICATE KEY UPDATE group_id = VALUES(group_id)')
                         ->execute([$targetId, $groupId]);
@@ -214,6 +217,14 @@ final class AdminController
              )
              ORDER BY name"
         )->fetchAll();
+    }
+
+    private function isSuperAdminUser(PDO $pdo, int $userId): bool
+    {
+        $stmt = $pdo->prepare("SELECT 1 FROM users WHERE id = ? AND role = 'super_admin'");
+        $stmt->execute([$userId]);
+
+        return $stmt->fetchColumn() !== false;
     }
 
     private function canManageGroup(PDO $pdo, bool $isSuperAdmin, int $groupId): bool

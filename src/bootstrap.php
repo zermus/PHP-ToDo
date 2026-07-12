@@ -10,7 +10,9 @@ require APP_ROOT . '/vendor/autoload.php';
 
 // --- Configuration ------------------------------------------------------
 
-$configFile = APP_ROOT . '/config.php';
+// PHPTODO_CONFIG lets you point at an alternate config file (testing,
+// multiple instances sharing one codebase). Defaults to ./config.php.
+$configFile = getenv('PHPTODO_CONFIG') ?: APP_ROOT . '/config.php';
 
 if (!is_file($configFile) || !is_readable($configFile)) {
     http_response_code(500);

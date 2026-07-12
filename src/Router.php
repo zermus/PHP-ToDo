@@ -52,9 +52,14 @@ final class Router
         usort($prefixes, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
 
         foreach ($prefixes as $prefix) {
+            // Only strip on a whole-segment boundary, so a base dir of "/todo"
+            // never mangles a request to "/todos".
             if ($prefix !== '/' && $prefix !== '' && str_starts_with($uri, $prefix)) {
-                $uri = substr($uri, strlen($prefix));
-                break;
+                $rest = substr($uri, strlen($prefix));
+                if ($rest === '' || $rest[0] === '/') {
+                    $uri = $rest;
+                    break;
+                }
             }
         }
 

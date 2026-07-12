@@ -33,20 +33,19 @@ final class SettingsController
         $errors = [];
         $successes = [];
 
-        // --- Timezone -----------------------------------------------------
+        // --- Validate everything before committing anything ---------------
+        // (all-or-nothing: a bad value in one section must not let another
+        // section's change go through silently).
         $newTimezone = input_string('timezone');
-        if ($newTimezone !== '' && $newTimezone !== $user['timezone']) {
-            if (valid_timezone($newTimezone)) {
-                $pdo->prepare('UPDATE users SET timezone = ? WHERE id = ?')
-                    ->execute([$newTimezone, $userId]);
-                $successes[] = 'Timezone updated successfully.';
-            } else {
-                $errors[] = 'Invalid timezone.';
-            }
-        }
-
-        // --- Email change (single hop: verify at the new address) ---------
         $newEmail = input_string('email');
+        $currentPassword = (string) ($_POST['currentPassword'] ?? '');
+        $newPassword = (string) ($_POST['newPassword'] ?? '');
+        $urgencyGreen = (int) ($_POST['urgency_green'] ?? 0);
+        $urgencyCritical = (int) ($_POST['urgency_critical'] ?? 0);
+
+        if ($newTimezone !== '' && $newTimezone !== $user['timezone'] && !valid_timezone($newTimezone)) {
+            $errors[] = 'Invalid timezone.';
+        }
         if ($newEmail !== '' && strcasecmp($newEmail, (string) $user['email']) !== 0) {
             if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = 'Invalid email format.';
@@ -55,65 +54,79 @@ final class SettingsController
                 $inUse->execute([$newEmail, $userId]);
                 if ((int) $inUse->fetchColumn() > 0) {
                     $errors[] = 'That email address is already in use.';
-                } else {
-                    $token = bin2hex(random_bytes(32));
-                    $pdo->prepare('UPDATE users SET new_email = ?, new_email_token = ?,
-                                   new_email_token_expiry = DATE_ADD(NOW(), INTERVAL 24 HOUR)
-                                   WHERE id = ?')
-                        ->execute([$newEmail, $token, $userId]);
-
-                    $link = url('/settings/verify-new-email?token=' . $token);
-                    Mailer::send(
-                        $newEmail,
-                        (string) $user['name'],
-                        'Verify Your New Email Address',
-                        "Hello {$user['name']},\n\nA request was made to change your To-Do App email "
-                        . "address to this one. Click the link below to confirm:\n{$link}\n\n"
-                        . "The link is valid for 24 hours. If you did not request this, you can "
-                        . "ignore this email.\n\nThank you!"
-                    );
-                    Mailer::send(
-                        (string) $user['email'],
-                        (string) $user['name'],
-                        'Email Change Requested',
-                        "Hello {$user['name']},\n\nA request was made to change your To-Do App email "
-                        . "address to {$newEmail}. A verification link has been sent to that address.\n\n"
-                        . "If you did not request this, please change your password immediately."
-                    );
-
-                    $successes[] = "A verification email has been sent to {$newEmail}. "
-                        . 'The change takes effect once you confirm it there.';
                 }
             }
         }
-
-        // --- Password change ----------------------------------------------
-        $currentPassword = (string) ($_POST['currentPassword'] ?? '');
-        $newPassword = (string) ($_POST['newPassword'] ?? '');
         if ($newPassword !== '') {
             if ($currentPassword === '' || !password_verify($currentPassword, (string) $user['password'])) {
                 $errors[] = 'Current password is incorrect.';
             } elseif (!password_meets_policy($newPassword)) {
                 $errors[] = 'New password does not meet the requirements.';
-            } else {
-                $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')
-                    ->execute([password_hash($newPassword, PASSWORD_DEFAULT), $userId]);
-                // Sign out remembered sessions elsewhere.
-                $pdo->prepare('DELETE FROM user_remember_tokens WHERE user_id = ?')->execute([$userId]);
-                $successes[] = 'Password updated successfully.';
             }
         }
-
-        // --- Urgency thresholds -------------------------------------------
-        $urgencyGreen = (int) ($_POST['urgency_green'] ?? 0);
-        $urgencyCritical = (int) ($_POST['urgency_critical'] ?? 0);
         if (!in_array($urgencyGreen, self::URGENCY_GREEN_CHOICES, true)
             || !in_array($urgencyCritical, self::URGENCY_CRITICAL_CHOICES, true)
         ) {
             $errors[] = 'Invalid urgency selection.';
         } elseif ($urgencyCritical >= $urgencyGreen) {
             $errors[] = 'Critical urgency must be less than Green urgency.';
-        } elseif ($urgencyGreen !== (int) $user['urgency_green']
+        }
+
+        if ($errors !== []) {
+            $this->render($user, $errors, $successes);
+
+            return;
+        }
+
+        // --- Timezone -----------------------------------------------------
+        if ($newTimezone !== '' && $newTimezone !== $user['timezone']) {
+            $pdo->prepare('UPDATE users SET timezone = ? WHERE id = ?')
+                ->execute([$newTimezone, $userId]);
+            $successes[] = 'Timezone updated successfully.';
+        }
+
+        // --- Email change (single hop: verify at the new address) ---------
+        if ($newEmail !== '' && strcasecmp($newEmail, (string) $user['email']) !== 0) {
+            $token = bin2hex(random_bytes(32));
+            $pdo->prepare('UPDATE users SET new_email = ?, new_email_token = ?,
+                           new_email_token_expiry = DATE_ADD(NOW(), INTERVAL 24 HOUR)
+                           WHERE id = ?')
+                ->execute([$newEmail, $token, $userId]);
+
+            $link = url('/settings/verify-new-email?token=' . $token);
+            Mailer::send(
+                $newEmail,
+                (string) $user['name'],
+                'Verify Your New Email Address',
+                "Hello {$user['name']},\n\nA request was made to change your To-Do App email "
+                . "address to this one. Click the link below to confirm:\n{$link}\n\n"
+                . "The link is valid for 24 hours. If you did not request this, you can "
+                . "ignore this email.\n\nThank you!"
+            );
+            Mailer::send(
+                (string) $user['email'],
+                (string) $user['name'],
+                'Email Change Requested',
+                "Hello {$user['name']},\n\nA request was made to change your To-Do App email "
+                . "address to {$newEmail}. A verification link has been sent to that address.\n\n"
+                . "If you did not request this, please change your password immediately."
+            );
+
+            $successes[] = "A verification email has been sent to {$newEmail}. "
+                . 'The change takes effect once you confirm it there.';
+        }
+
+        // --- Password change ----------------------------------------------
+        if ($newPassword !== '') {
+            $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')
+                ->execute([password_hash($newPassword, PASSWORD_DEFAULT), $userId]);
+            // Sign out remembered sessions elsewhere.
+            $pdo->prepare('DELETE FROM user_remember_tokens WHERE user_id = ?')->execute([$userId]);
+            $successes[] = 'Password updated successfully.';
+        }
+
+        // --- Urgency thresholds -------------------------------------------
+        if ($urgencyGreen !== (int) $user['urgency_green']
             || $urgencyCritical !== (int) $user['urgency_critical']
         ) {
             $pdo->prepare('UPDATE users SET urgency_green = ?, urgency_critical = ? WHERE id = ?')
