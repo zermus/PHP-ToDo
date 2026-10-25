@@ -7,7 +7,7 @@ view, and email reminders. Version **0.97**.
 
 ## Requirements
 
-- PHP **8.1 or higher** (with `pdo_mysql` and `mbstring` extensions)
+- PHP **8.3 or higher** (with `pdo_mysql` and `mbstring` extensions)
 - MySQL **5.7+** or MariaDB **10.2+** (required for the `utf8mb4` schema)
 - A web server (Apache or Nginx)
 
@@ -38,14 +38,17 @@ php-todo/
 
 2. **Create your config**: copy `config.sample.php` to `config.php` and fill in
    your database credentials, `base_url`, and mail settings. `config.php` is
-   never touched by upgrades.
+   never touched by upgrades. Set `setup_key` to a long, locally generated random
+   private secret. Optional `trusted_proxies` lists exact proxy IP addresses;
+   these proxies must overwrite forwarded headers, not relay client values.
 
 3. **Point your web server at `public/`** (recommended), or deploy flat — see
    *Deployment modes* below.
 
 4. **Run the installer**: browse to `.../install.php` (e.g.
-   `https://yoursite.com/todo/install.php`), fill in the admin account form,
-   and submit.
+   `https://yoursite.com/todo/install.php`). Enter the setup key, fill in the
+   admin form, and confirm the key when submitting. Before key verification,
+   the installer does not access the database.
 
 5. **Post-install**:
    - Verify the admin email via the link that was sent.
@@ -68,7 +71,7 @@ server {
     location ~ \.php$ {
         include fastcgi_params;
         fastcgi_pass unix:/run/php-fpm/www.sock;
-        fastcgi_param SCRIPT_FILENAME $document_root$fpm_script_name;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     }
 }
 ```
@@ -106,12 +109,20 @@ Set `mail.transport` in `config.php`:
 1. **Back up your database.**
 2. Extract the new release **over** your existing files. `config.php` is
    preserved.
-3. Browse to `.../install.php`. It detects the existing installation and shows
+3. Add `setup_key` to config.php (or `$setup_key` in a legacy loose-variable
+   config). Browse to `.../install.php` and enter the key. It then detects the existing installation and shows
    an **Upgrade** button instead of the install form; it never exposes admin
    creation on an existing database.
-4. Click **Upgrade Database**. Migrations run in order and the schema version is
+4. Confirm the setup key and click **Upgrade Database**. Migrations run in order and the schema version is
    recorded. The upgrade can optionally remove leftover files from older
    (pre-0.97) flat deployments.
+
+Note: schema v3 invalidates all previous remember tokens; sign in again.
+Cookies now use app-specific names and the `base_url` path (falling back to `/`).
+Existing sessions require signing in again; unrelated `PHPSESSID` cookies are
+left untouched. Only configured trusted proxies may supply forwarded HTTPS
+and client-IP information; the right-most forwarded IP is used. Without a
+trusted proxy, the direct connection determines HTTPS and the client IP.
 
 Note: upgrading from 0.96 invalidates existing "remember me" cookies (the token
 storage is now hashed and expiring) — affected users simply log in again once.

@@ -8,7 +8,7 @@ use PDO;
 
 final class Auth
 {
-    private const REMEMBER_COOKIE = 'rememberMe';
+    private const REMEMBER_COOKIE = 'phptodo_remember';
     private const REMEMBER_DAYS = 30;
 
     /** @var array<string, mixed>|null */
@@ -179,8 +179,8 @@ final class Auth
 
         setcookie(self::REMEMBER_COOKIE, $selector . ':' . $validator, [
             'expires'  => time() + 86400 * self::REMEMBER_DAYS,
-            'path'     => '/',
-            'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'path'     => app_cookie_path(),
+            'secure'   => request_is_https(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -189,7 +189,13 @@ final class Auth
     private static function clearRememberCookie(): void
     {
         if (isset($_COOKIE[self::REMEMBER_COOKIE])) {
-            setcookie(self::REMEMBER_COOKIE, '', time() - 3600, '/');
+            setcookie(self::REMEMBER_COOKIE, '', [
+                'expires'  => time() - 3600,
+                'path'     => app_cookie_path(),
+                'secure'   => request_is_https(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
             unset($_COOKIE[self::REMEMBER_COOKIE]);
         }
     }

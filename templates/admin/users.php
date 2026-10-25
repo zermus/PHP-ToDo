@@ -6,7 +6,7 @@
         <?= Csrf::field() ?>
         <input type="hidden" name="action" value="toggle_registration">
         User Registration:
-        <input type="checkbox" name="registration_status" <?= $registrationEnabled ? 'checked' : '' ?> onchange="this.form.submit()">
+        <input type="checkbox" name="registration_status" <?= $registrationEnabled ? 'checked' : '' ?> data-auto-submit>
     </form>
 
     <form action="<?= e(url('/admin/users')) ?>" method="post">
@@ -123,7 +123,7 @@
                             </form>
                             <?php endif; ?>
                             <form action="<?= e(url('/admin/users')) ?>" method="post" class="inline"
-                                  onsubmit="return confirm('Delete this user and all of their tasks?');">
+                                  data-confirm="Delete this user and all of their tasks?">
                                 <?= Csrf::field() ?>
                                 <input type="hidden" name="action" value="delete_user">
                                 <input type="hidden" name="user_id" value="<?= (int) $u['id'] ?>">

@@ -10,6 +10,30 @@ use App\Installer\Installer;
 use App\Installer\Migrator;
 use App\View;
 
+$key = App::config('setup_key', '');
+$isPost = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
+$verified = is_string($key) && $key !== ''
+    && hash_equals(hash('sha256', $key), (string) ($_SESSION['setup_key_hash'] ?? ''));
+if ($isPost) {
+    $submitted = $_POST['setup_key'] ?? null;
+    $verified = is_string($key) && $key !== '' && is_string($submitted) && hash_equals($key, $submitted);
+    if (!$verified) {
+        unset($_SESSION['setup_key_hash']);
+        http_response_code(403);
+    } else {
+        Csrf::require();
+        $_SESSION['setup_key_hash'] = hash('sha256', $key);
+    }
+}
+if (!$verified) {
+    echo View::render('install/key', [
+        'title'      => 'Setup authorization',
+        'configured' => is_string($key) && $key !== '',
+        'rejected'   => $isPost,
+    ]);
+    exit;
+}
+
 $installer = new Installer();
 
 try {

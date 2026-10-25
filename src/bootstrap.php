@@ -6,6 +6,13 @@ use App\App;
 
 define('APP_ROOT', dirname(__DIR__));
 
+if (PHP_SAPI !== 'cli') {
+    header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+    header('X-Frame-Options: DENY');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: same-origin');
+}
+
 require APP_ROOT . '/vendor/autoload.php';
 
 // --- Configuration ------------------------------------------------------
@@ -15,8 +22,10 @@ require APP_ROOT . '/vendor/autoload.php';
 $configFile = getenv('PHPTODO_CONFIG') ?: APP_ROOT . '/config.php';
 
 if (!is_file($configFile) || !is_readable($configFile)) {
-    http_response_code(500);
-    header('Content-Type: text/plain; charset=utf-8');
+    if (PHP_SAPI !== 'cli') {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+    }
     echo "php-todo is not configured yet.\n\n"
         . "Copy config.sample.php to config.php next to it, fill in your database\n"
         . "and mail settings, then reload this page. See the README for details.\n";
@@ -36,6 +45,8 @@ if (!is_array($config) && isset($host, $dbname, $db_username, $db_password, $bas
             'pass' => $db_password,
         ],
         'base_url' => $base_url,
+        'setup_key' => $setup_key ?? '',
+        'trusted_proxies' => $trusted_proxies ?? [],
         'mail' => [
             'from'      => $from_email,
             'from_name' => 'To-Do App',
@@ -45,8 +56,10 @@ if (!is_array($config) && isset($host, $dbname, $db_username, $db_password, $bas
 }
 
 if (!is_array($config)) {
-    http_response_code(500);
-    header('Content-Type: text/plain; charset=utf-8');
+    if (PHP_SAPI !== 'cli') {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+    }
     echo "config.php must return an array. Use config.sample.php as a starting point.\n";
     exit;
 }
@@ -91,16 +104,26 @@ set_exception_handler(static function (Throwable $e): void {
 // --- Session ------------------------------------------------------------
 
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    session_name('phptodo_sess');
+    $secure = request_is_https();
 
     session_set_cookie_params([
         'lifetime' => 0,
-        'path'     => '/',
+        'path'     => app_cookie_path(),
         'secure'   => $secure,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
 
     session_start();
+    if (isset($_COOKIE['rememberMe'])) {
+        setcookie('rememberMe', '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'secure'   => request_is_https(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        unset($_COOKIE['rememberMe']);
+    }
 }

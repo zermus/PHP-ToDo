@@ -4,6 +4,8 @@
     <p>Welcome! This sets up the database and creates your administrator account.</p>
     <form method="post">
         <?= Csrf::field() ?>
+        <label for="setup_key">Confirm setup key:</label>
+        <input type="password" id="setup_key" name="setup_key" required autocomplete="off">
         <input type="hidden" name="action" value="install">
         <div>
             <label for="adminName">Admin Name:</label>

@@ -57,10 +57,11 @@ final class SettingsController
                 }
             }
         }
-        if ($newPassword !== '') {
+        $emailChanged = $newEmail !== '' && strcasecmp($newEmail, (string) $user['email']) !== 0;
+        if ($emailChanged || $newPassword !== '') {
             if ($currentPassword === '' || !password_verify($currentPassword, (string) $user['password'])) {
                 $errors[] = 'Current password is incorrect.';
-            } elseif (!password_meets_policy($newPassword)) {
+            } elseif ($newPassword !== '' && !password_meets_policy($newPassword)) {
                 $errors[] = 'New password does not meet the requirements.';
             }
         }
