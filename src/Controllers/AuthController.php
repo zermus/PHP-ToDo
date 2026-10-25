@@ -8,10 +8,13 @@ use App\Auth;
 use App\Csrf;
 use App\Database;
 use App\Mailer;
+use App\RateLimiter;
 use App\View;
 
 final class AuthController
 {
+    private const DUMMY_HASH = '$2y$12$LI2EdUCHF8af8cdMN0c/peAJAz8aIhx8/Hpwyc8nzr3zUsVU7IH42';
+
     public function loginForm(): void
     {
         if (Auth::user() !== null) {
@@ -34,16 +37,22 @@ final class AuthController
         $remember = !empty($_POST['rememberMe']);
 
         $error = null;
+        if (!RateLimiter::record('login', $username)) {
+            echo View::render('auth/login', ['title' => 'To Do Login Page', 'error' => 'Invalid username or password.']);
+            return;
+        }
 
         $stmt = Database::pdo()->prepare('SELECT * FROM users WHERE username = ?');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
-        if (!$user || !password_verify($password, $user['password'])) {
+        $valid = password_verify($password, $user ? $user['password'] : self::DUMMY_HASH);
+        if (!$user || !$valid) {
             $error = 'Invalid username or password.';
         } elseif (!$user['email_verified']) {
             $error = 'Please verify your email address before logging in.';
         } else {
+            RateLimiter::clearLogin($username, request_client_ip());
             Auth::login($user, $remember);
             redirect('/tasks');
         }
@@ -235,27 +244,10 @@ final class AuthController
     {
         Csrf::require();
 
-        // Session-based rate limiting: 3 attempts per 15 minutes.
-        if (!isset($_SESSION['reset_attempts']) || ($_SESSION['reset_timestamp'] ?? 0) + 900 < time()) {
-            $_SESSION['reset_attempts'] = 0;
-            $_SESSION['reset_timestamp'] = time();
-        }
-
-        if ($_SESSION['reset_attempts'] >= 3) {
-            echo View::render('auth/forgot_password', [
-                'title'   => 'Forgot Password',
-                'message' => 'Too many requests. Please try again later.',
-                'isError' => true,
-            ]);
-
-            return;
-        }
-
-        $_SESSION['reset_attempts']++;
-
         $email = input_string('email');
+        $allowed = RateLimiter::record('reset', $email);
 
-        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if ($allowed && filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $pdo = Database::pdo();
             $stmt = $pdo->prepare('SELECT id, name, email FROM users WHERE email = ?');
             $stmt->execute([$email]);
@@ -329,6 +321,8 @@ final class AuthController
         $pdo->prepare('UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?')
             ->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
 
+        RateLimiter::clearLogin((string) $user['username']);
+
         // Invalidate any remembered sessions on other devices.
         $pdo->prepare('DELETE FROM user_remember_tokens WHERE user_id = ?')->execute([$user['id']]);
 
@@ -350,7 +344,7 @@ final class AuthController
     private function userForResetToken(string $token): ?array
     {
         $stmt = Database::pdo()->prepare(
-            'SELECT id FROM users WHERE reset_token = ? AND reset_token_expiry > NOW()'
+            'SELECT id, username FROM users WHERE reset_token = ? AND reset_token_expiry > NOW()'
         );
         $stmt->execute([$token]);
         $user = $stmt->fetch();

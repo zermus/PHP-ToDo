@@ -8,6 +8,11 @@
  */
 
 return [
+    // Generate a long random private key locally before installing/upgrading.
+    // Leave empty to disable setup. Never share this key.
+    'setup_key' => '',
+    // Exact proxy IPs only. Proxies must overwrite forwarded headers.
+    'trusted_proxies' => [],
 
     // MySQL / MariaDB connection.
     'db' => [

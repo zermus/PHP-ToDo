@@ -22,9 +22,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    var config = window.taskFormConfig || {};
-    if (config.details) {
-        quill.clipboard.dangerouslyPasteHTML(DOMPurify.sanitize(config.details));
+    var details = form.dataset.details || '';
+    if (details) {
+        quill.clipboard.dangerouslyPasteHTML(DOMPurify.sanitize(details));
     }
 
     form.addEventListener('submit', function () {

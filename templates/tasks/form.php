@@ -1,7 +1,8 @@
-<?php use App\Csrf; ?>
+<?php use App\Csrf; use App\Sanitizer; ?>
 <div class="container">
     <h1><?= $task ? 'Edit Task' : 'Create New Task' ?></h1>
-    <form action="<?= e($task ? url('/tasks/edit') : url('/tasks/create')) ?>" method="post" id="task-form">
+    <form action="<?= e($task ? url('/tasks/edit') : url('/tasks/create')) ?>" method="post" id="task-form"
+          data-details="<?= e(Sanitizer::html((string) ($task['details'] ?? ''))) ?>">
         <?= Csrf::field() ?>
         <?php if ($task): ?>
             <input type="hidden" name="id" value="<?= (int) $task['id'] ?>">
@@ -88,8 +89,3 @@
         <div class="message error"><?= e($error) ?></div>
     <?php endif; ?>
 </div>
-<script>
-    window.taskFormConfig = {
-        details: <?= json_encode($task['details'] ?? '') ?>
-    };
-</script>

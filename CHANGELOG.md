@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Isolate cookies, unify proxy trust, and authorize setup before database access.
+- Add schema v3 persistent authentication limits and retire old remember tokens.
+- Require password confirmation for email changes.
+- Sanitize editor data, refresh DOMPurify, and add security headers.
+- Move inline scripts to assets; require PHP 8.3+ and fix nginx example.
+
 ## 0.97
 
 A major modernization overhaul. Requires PHP 8.1+ and MySQL 5.7+ / MariaDB 10.2+.

@@ -7,6 +7,8 @@
        <strong>Back up your database first.</strong></p>
     <form method="post">
         <?= Csrf::field() ?>
+        <label for="setup_key">Confirm setup key:</label>
+        <input type="password" id="setup_key" name="setup_key" required autocomplete="off">
         <input type="hidden" name="action" value="upgrade">
         <div class="checkbox-row">
             <input type="checkbox" id="cleanup_legacy" name="cleanup_legacy" value="1" checked>

@@ -11,7 +11,7 @@
             <?= timezone_options($user['timezone']) ?>
         </select>
 
-        <label for="currentPassword">Current Password (for password change only):</label>
+        <label for="currentPassword">Current Password (required for email or password changes):</label>
         <input type="password" name="currentPassword" id="currentPassword" placeholder="Current Password" autocomplete="current-password">
 
         <label for="password">New Password:</label>

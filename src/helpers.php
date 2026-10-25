@@ -4,6 +4,38 @@ declare(strict_types=1);
 
 use App\App;
 
+function request_trusts_proxy(): bool
+{
+    return in_array($_SERVER['REMOTE_ADDR'] ?? '', (array) App::config('trusted_proxies', []), true);
+}
+
+function request_is_https(): bool
+{
+    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (request_trusts_proxy() && strtolower(trim($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+}
+
+function request_client_ip(): string
+{
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (request_trusts_proxy()) {
+        $chain = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+        $candidate = trim((string) end($chain));
+        if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+            $ip = $candidate;
+        }
+    }
+
+    return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '';
+}
+
+function app_cookie_path(): string
+{
+    $path = parse_url((string) App::config('base_url', '/'), PHP_URL_PATH);
+
+    return is_string($path) && str_starts_with($path, '/') ? $path : '/';
+}
+
 /**
  * HTML-escape for template output.
  */

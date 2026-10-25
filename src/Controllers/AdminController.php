@@ -37,6 +37,7 @@ final class AdminController
 
         echo View::render('admin/users', [
             'title'               => 'To Do Manage Users',
+            'scripts'             => [asset('js/admin.js')],
             'currentUser'         => $user,
             'isSuperAdmin'        => $isSuperAdmin,
             'registrationEnabled' => $registration->fetchColumn() === '1',
