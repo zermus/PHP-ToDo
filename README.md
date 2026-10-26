@@ -1,7 +1,7 @@
 # PHP To-Do Application
 
 A self-hosted to-do list with groups, checklists, rich-text notes, a calendar
-view, and email reminders. Version **0.97**.
+view, and email reminders. Version **0.98**.
 
 📦 **[Download the latest release](https://github.com/zermus/PHP-ToDo/releases)** — grab the ready-to-install tarball from the Releases page.
 
@@ -39,8 +39,10 @@ php-todo/
 2. **Create your config**: copy `config.sample.php` to `config.php` and fill in
    your database credentials, `base_url`, and mail settings. `config.php` is
    never touched by upgrades. Set `setup_key` to a long, locally generated random
-   private secret. Optional `trusted_proxies` lists exact proxy IP addresses;
-   these proxies must overwrite forwarded headers, not relay client values.
+   private secret **before opening `install.php`**; the installer refuses
+   without it. Behind a reverse proxy, set `trusted_proxies` to its exact IP
+   addresses; these proxies must overwrite forwarded headers, not relay client
+   values.
 
 3. **Point your web server at `public/`** (recommended), or deploy flat — see
    *Deployment modes* below.
@@ -109,13 +111,22 @@ Set `mail.transport` in `config.php`:
 1. **Back up your database.**
 2. Extract the new release **over** your existing files. `config.php` is
    preserved.
-3. Add `setup_key` to config.php (or `$setup_key` in a legacy loose-variable
-   config). Browse to `.../install.php` and enter the key. It then detects the existing installation and shows
-   an **Upgrade** button instead of the install form; it never exposes admin
-   creation on an existing database.
-4. Confirm the setup key and click **Upgrade Database**. Migrations run in order and the schema version is
-   recorded. The upgrade can optionally remove leftover files from older
-   (pre-0.97) flat deployments.
+3. Before opening `install.php`, set `setup_key` in `config.php` to a long,
+   locally generated random private secret; the installer refuses without it.
+   Legacy loose-variable configs use `$setup_key`.
+4. Behind a reverse proxy, set `trusted_proxies` to its exact IP addresses
+   (or `$trusted_proxies` in a legacy config). Proxies must overwrite forwarded
+   headers rather than relay client values.
+5. Run `install.php`, enter and confirm the setup key, then click **Upgrade
+   Database** to apply schema 3. The installer detects the existing installation
+   and shows an **Upgrade** button instead of the install form; it never exposes
+   admin creation on an existing database. Migrations run in order and the schema
+   version is recorded. The upgrade can optionally remove leftover files from
+   older (pre-0.97) flat deployments.
+6. Everyone signs in again once: old remember-me cookies and tokens are dropped
+   and old sessions are no longer used.
+7. Move inline JavaScript in custom template edits into separate script files
+   served by the app because the new security headers block inline scripts.
 
 Note: schema v3 invalidates all previous remember tokens; sign in again.
 Cookies now use app-specific names and the `base_url` path (falling back to `/`).
