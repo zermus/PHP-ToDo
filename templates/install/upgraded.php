@@ -19,6 +19,6 @@
            Please delete them manually.</p>
     <?php endif; ?>
 
-    <p>Note: remember-me cookies from 0.96 are no longer valid — users simply log in again once.</p>
+    <p>Everyone signs in again once after this upgrade.</p>
     <a href="<?= e(url('/login')) ?>" class="btn">Go to Login</a>
 </div>

@@ -17,7 +17,7 @@
         <label for="password">New Password:</label>
         <input type="password" name="newPassword" id="password" placeholder="New Password" autocomplete="new-password">
         <input type="password" id="verifyPassword" placeholder="Verify New Password" autocomplete="new-password">
-        <div id="passwordMessage" class="password-requirements"></div>
+        <div id="passwordMessage" class="password-requirements">Password must be at least 8 characters long, at most 72 bytes, and include an uppercase letter, a lowercase letter, a number, and a non-alphanumeric character (spaces count).</div>
 
         <h3>Task Urgency Settings</h3>
         <div class="urgency-setting">

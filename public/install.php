@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $removed = [];
         $failed = [];
-        if (!empty($_POST['cleanup_legacy'])) {
+        if ($version === 1 && !empty($_POST['cleanup_legacy'])) {
             [$removed, $failed] = $installer->removeLegacyFiles();
         }
 
@@ -90,8 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             input_string('adminUsername'),
             input_string('adminEmail'),
             input_string('adminTimezone'),
-            (string) ($_POST['adminPassword'] ?? ''),
-            (string) ($_POST['verifyPassword'] ?? '')
+            input_password('adminPassword'),
+            input_password('verifyPassword')
         );
 
         if ($error === null) {
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo View::render('install/form', [
             'title' => 'Install To-Do App',
             'error' => $error,
-            'old'   => $_POST,
+            'old'   => old_strings($_POST),
         ]);
         exit;
     }

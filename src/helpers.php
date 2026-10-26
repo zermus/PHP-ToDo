@@ -111,6 +111,23 @@ function input_string(string $key, ?array $source = null): string
     return is_string($value) ? trim($value) : '';
 }
 
+function input_password(string $key): string
+{
+    $value = $_POST[$key] ?? '';
+
+    return is_string($value) ? $value : '';
+}
+
+function within_character_limit(string $value, int $limit): bool
+{
+    return mb_check_encoding($value, 'UTF-8') && mb_strlen($value, 'UTF-8') <= $limit;
+}
+
+function old_strings(array $values): array
+{
+    return array_filter($values, 'is_string');
+}
+
 /**
  * The timezones offered throughout the app.
  *
@@ -163,10 +180,13 @@ function valid_timezone(string $zone): bool
  */
 function password_meets_policy(string $password): bool
 {
-    return (bool) preg_match(
-        '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/',
-        $password
-    );
+    return strlen($password) <= 72
+        && mb_strlen($password) >= 8
+        && !str_contains($password, "\0")
+        && preg_match('/[a-z]/', $password)
+        && preg_match('/[A-Z]/', $password)
+        && preg_match('/[0-9]/', $password)
+        && preg_match('/[^a-zA-Z0-9]/', $password);
 }
 
 /**

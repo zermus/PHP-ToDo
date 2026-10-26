@@ -10,6 +10,7 @@ use App\Database;
 use App\Mailer;
 use App\RateLimiter;
 use App\View;
+use App\Verification;
 
 final class AuthController
 {
@@ -33,7 +34,7 @@ final class AuthController
         Csrf::require();
 
         $username = input_string('username');
-        $password = (string) ($_POST['password'] ?? '');
+        $password = input_password('password');
         $remember = !empty($_POST['rememberMe']);
 
         $error = null;
@@ -53,6 +54,17 @@ final class AuthController
             $error = 'Please verify your email address before logging in.';
         } else {
             RateLimiter::clearLogin($username, request_client_ip());
+            if (password_needs_rehash($user['password'], PASSWORD_DEFAULT)) {
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+                $update = Database::pdo()->prepare('UPDATE users SET password = ? WHERE id = ? AND password = ?');
+                $update->execute([$hash, $user['id'], $user['password']]);
+                if ($update->rowCount() !== 1) {
+                    redirect('/login');
+                }
+                $user['password'] = $hash;
+                Database::pdo()->prepare('DELETE FROM user_remember_tokens WHERE user_id = ?')
+                    ->execute([$user['id']]);
+            }
             Auth::login($user, $remember);
             redirect('/tasks');
         }
@@ -103,8 +115,8 @@ final class AuthController
         $username = input_string('username');
         $email = input_string('email');
         $timezone = input_string('timezone');
-        $password = (string) ($_POST['password'] ?? '');
-        $verifyPassword = (string) ($_POST['verifyPassword'] ?? '');
+        $password = input_password('password');
+        $verifyPassword = input_password('verifyPassword');
 
         $pdo = Database::pdo();
         $error = null;
@@ -112,41 +124,31 @@ final class AuthController
 
         if ($name === '' || $username === '' || $email === '' || $timezone === '') {
             $error = 'All fields are required.';
+        } elseif (!within_character_limit($name, 255) || !within_character_limit($username, 190) || !within_character_limit($email, 190)) {
+            $error = 'Name must be at most 255 characters; username and email at most 190 characters.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Please enter a valid email address.';
         } elseif (!valid_timezone($timezone)) {
             $error = 'Please choose a valid timezone.';
         } elseif ($password !== $verifyPassword) {
             $error = 'The passwords do not match. Please try again.';
+        } elseif (strlen($password) > 72) {
+            $error = 'Password must not exceed 72 bytes.';
         } elseif (!password_meets_policy($password)) {
-            $error = 'Password must be at least 8 characters long and include at least one uppercase letter, '
-                . 'one lowercase letter, one number, and one special character.';
+            $error = 'Password must be at least 8 characters long, at most 72 bytes, and include an uppercase letter, '
+                . 'a lowercase letter, a number, and a non-alphanumeric character (spaces count).';
         } else {
             $check = $pdo->prepare('SELECT COUNT(*) FROM users WHERE username = ? OR email = ?');
             $check->execute([$username, $email]);
             if ((int) $check->fetchColumn() > 0) {
                 $error = 'Username or Email already exists.';
             } else {
-                $token = bin2hex(random_bytes(32));
                 $stmt = $pdo->prepare(
-                    "INSERT INTO users (name, username, email, password, role, verification_token,
-                                        verification_token_expiry, timezone)
-                     VALUES (?, ?, ?, ?, 'user', ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), ?)"
+                    "INSERT INTO users (name, username, email, password, role, timezone)
+                     VALUES (?, ?, ?, ?, 'user', ?)"
                 );
-                $stmt->execute([
-                    $name, $username, $email,
-                    password_hash($password, PASSWORD_DEFAULT),
-                    $token, $timezone,
-                ]);
-
-                $link = url('/verify?token=' . $token);
-                $sent = Mailer::send(
-                    $email,
-                    $name,
-                    'Verify Your Email',
-                    "Hello {$name},\n\nPlease click the following link to verify your email and activate "
-                    . "your account:\n{$link}\n\nThe link is valid for 24 hours.\n\nThank you!"
-                );
+                $stmt->execute([$name, $username, $email, password_hash($password, PASSWORD_DEFAULT), $timezone]);
+                $sent = Verification::send((int) $pdo->lastInsertId());
 
                 if ($sent) {
                     $success = 'Registration successful! Please check your email to verify your account.';
@@ -162,7 +164,7 @@ final class AuthController
             'registrationEnabled' => true,
             'error'               => $error,
             'success'             => $success,
-            'old'                 => $error !== null ? $_POST : [],
+            'old'                 => $error !== null ? old_strings($_POST) : [],
         ]);
     }
 
@@ -177,7 +179,7 @@ final class AuthController
         $pdo = Database::pdo();
         $stmt = $pdo->prepare('SELECT id, verification_token_expiry FROM users
                                WHERE verification_token = ? AND email_verified = FALSE');
-        $stmt->execute([$token]);
+        $stmt->execute([hash('sha256', $token)]);
         $user = $stmt->fetch();
 
         if (!$user) {
@@ -206,33 +208,34 @@ final class AuthController
     public function resendVerification(): void
     {
         $token = input_string('token', $_GET);
-
-        if ($token !== '') {
-            $pdo = Database::pdo();
-            $stmt = $pdo->prepare('SELECT id, name, email FROM users
-                                   WHERE verification_token = ? AND email_verified = FALSE');
-            $stmt->execute([$token]);
-            $user = $stmt->fetch();
-
-            if ($user) {
-                $newToken = bin2hex(random_bytes(32));
-                $pdo->prepare('UPDATE users SET verification_token = ?,
-                               verification_token_expiry = DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE id = ?')
-                    ->execute([$newToken, $user['id']]);
-
-                $link = url('/verify?token=' . $newToken);
-                Mailer::send(
-                    $user['email'],
-                    $user['name'],
-                    'Verify Your Email',
-                    "Hello {$user['name']},\n\nHere is your new verification link:\n{$link}\n\n"
-                    . "The link is valid for 24 hours.\n\nThank you!"
-                );
-            }
+        if ($token === '') {
+            echo View::render('auth/resend_verification', ['title' => 'Send a new verification link', 'message' => null]);
+            return;
         }
 
-        // Same response either way — don't leak token validity.
-        $this->verificationResult(true, 'If the link was valid, a new verification email has been sent.');
+        $stmt = Database::pdo()->prepare('SELECT id, email FROM users
+            WHERE verification_token = ? AND email_verified = FALSE');
+        $stmt->execute([hash('sha256', $token)]);
+        $user = $stmt->fetch();
+        Verification::request($user ? (int) $user['id'] : null, 'invalid-verification-link');
+        $this->verificationResult(true, 'If the account needs verification, a new verification email has been sent.');
+    }
+
+    public function requestVerification(): void
+    {
+        Csrf::require();
+        $identifier = input_string('identifier');
+        $stmt = Database::pdo()->prepare('SELECT id, email, email_verified FROM users
+            WHERE username = ? OR email = ?');
+        $stmt->execute([$identifier, $identifier]);
+        $matches = $stmt->fetchAll();
+        // Ambiguous username/email matches must not send to the wrong account.
+        $user = count($matches) === 1 ? $matches[0] : null;
+        Verification::request($user ? (int) $user['id'] : null, $identifier);
+        echo View::render('auth/resend_verification', [
+            'title' => 'Send a new verification link',
+            'message' => 'If the account needs verification, a new verification email has been sent.',
+        ]);
     }
 
     public function forgotPasswordForm(): void
@@ -245,19 +248,19 @@ final class AuthController
         Csrf::require();
 
         $email = input_string('email');
-        $allowed = RateLimiter::record('reset', $email);
+        $pdo = Database::pdo();
+        $stmt = $pdo->prepare('SELECT id, name, email FROM users WHERE email = ?');
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+        $allowed = RateLimiter::record('reset', $user ? $user['email'] : $email);
 
         if ($allowed && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $pdo = Database::pdo();
-            $stmt = $pdo->prepare('SELECT id, name, email FROM users WHERE email = ?');
-            $stmt->execute([$email]);
-            $user = $stmt->fetch();
 
             if ($user) {
                 $token = bin2hex(random_bytes(32));
                 $pdo->prepare('UPDATE users SET reset_token = ?,
                                reset_token_expiry = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?')
-                    ->execute([$token, $user['id']]);
+                    ->execute([hash('sha256', $token), $user['id']]);
 
                 $link = url('/reset-password?token=' . $token);
                 Mailer::send(
@@ -294,8 +297,8 @@ final class AuthController
         Csrf::require();
 
         $token = input_string('token');
-        $password = (string) ($_POST['password'] ?? '');
-        $confirm = (string) ($_POST['confirmPassword'] ?? '');
+        $password = input_password('password');
+        $confirm = input_password('confirmPassword');
 
         $user = $token !== '' ? $this->userForResetToken($token) : null;
 
@@ -306,9 +309,11 @@ final class AuthController
         $error = null;
         if ($password !== $confirm) {
             $error = 'Passwords do not match.';
+        } elseif (strlen($password) > 72) {
+            $error = 'Password must not exceed 72 bytes.';
         } elseif (!password_meets_policy($password)) {
-            $error = 'Password must be at least 8 characters long and include at least one uppercase letter, '
-                . 'one lowercase letter, one number, and one special character.';
+            $error = 'Password must be at least 8 characters long, at most 72 bytes, and include an uppercase letter, '
+                . 'a lowercase letter, a number, and a non-alphanumeric character (spaces count).';
         }
 
         if ($error !== null) {
@@ -346,7 +351,7 @@ final class AuthController
         $stmt = Database::pdo()->prepare(
             'SELECT id, username FROM users WHERE reset_token = ? AND reset_token_expiry > NOW()'
         );
-        $stmt->execute([$token]);
+        $stmt->execute([hash('sha256', $token)]);
         $user = $stmt->fetch();
 
         return $user ?: null;

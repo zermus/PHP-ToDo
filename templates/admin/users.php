@@ -106,6 +106,14 @@
                         <?php endif; ?>
                     </td>
                     <td>
+                        <?php if ($canManageUser && !$u['email_verified']): ?>
+                        <form action="<?= e(url('/admin/users')) ?>" method="post" class="inline">
+                            <?= Csrf::field() ?>
+                            <input type="hidden" name="action" value="resend_verification">
+                            <input type="hidden" name="user_id" value="<?= (int) $u['id'] ?>">
+                            <button type="submit" class="btn">Resend verification</button>
+                        </form>
+                        <?php endif; ?>
                         <?php if ($u['role'] !== 'super_admin'): ?>
                             <?php if ($u['role'] === 'admin'): ?>
                             <form action="<?= e(url('/admin/users')) ?>" method="post" class="inline">

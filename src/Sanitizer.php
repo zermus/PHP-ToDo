@@ -41,12 +41,13 @@ final class Sanitizer
                 'ql-syntax',
             ]);
 
-            $cacheDir = sys_get_temp_dir() . '/php-todo-purifier';
+            $cacheDir = APP_ROOT . '/var/cache/purifier';
             if (!is_dir($cacheDir)) {
                 @mkdir($cacheDir, 0700, true);
             }
             if (is_dir($cacheDir) && is_writable($cacheDir)) {
                 $config->set('Cache.SerializerPath', $cacheDir);
+                $config->set('Cache.SerializerPermissions', 0700);
             } else {
                 $config->set('Cache.DefinitionImpl', null);
             }

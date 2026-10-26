@@ -6,7 +6,7 @@ namespace App\Installer;
 
 use App\App;
 use App\Database;
-use App\Mailer;
+use App\Verification;
 use PDO;
 use PDOException;
 
@@ -71,6 +71,9 @@ final class Installer
         if ($name === '' || $username === '' || $email === '' || $timezone === '') {
             return 'All fields are required.';
         }
+        if (!within_character_limit($name, 255) || !within_character_limit($username, 190) || !within_character_limit($email, 190)) {
+            return 'Name must be at most 255 characters; username and email at most 190 characters.';
+        }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return 'Please enter a valid email address.';
         }
@@ -80,38 +83,28 @@ final class Installer
         if ($password !== $verifyPassword) {
             return 'The passwords do not match. Please try again.';
         }
+        if (strlen($password) > 72) {
+            return 'Password must not exceed 72 bytes.';
+        }
         if (!password_meets_policy($password)) {
-            return 'Password must be at least 8 characters long and include at least one uppercase letter, '
-                . 'one lowercase letter, one number, and one special character.';
+            return 'Password must be at least 8 characters long, at most 72 bytes, and include an uppercase letter, '
+                . 'a lowercase letter, a number, and a non-alphanumeric character (spaces count).';
         }
 
-        $token = bin2hex(random_bytes(32));
-
         $stmt = $pdo->prepare(
-            "INSERT INTO users (name, username, email, password, role, verification_token,
-                                verification_token_expiry, timezone)
-             VALUES (?, ?, ?, ?, 'super_admin', ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), ?)"
+            "INSERT INTO users (name, username, email, password, role, timezone)
+             VALUES (?, ?, ?, ?, 'super_admin', ?)"
         );
-        $stmt->execute([
-            $name, $username, $email,
-            password_hash($password, PASSWORD_DEFAULT),
-            $token, $timezone,
-        ]);
+        $stmt->execute([$name, $username, $email, password_hash($password, PASSWORD_DEFAULT), $timezone]);
+        $userId = (int) $pdo->lastInsertId();
 
         $exists = $pdo->prepare("SELECT COUNT(*) FROM settings WHERE name = 'user_registration'");
         $exists->execute();
         if ((int) $exists->fetchColumn() === 0) {
-            $pdo->exec("INSERT INTO settings (name, value) VALUES ('user_registration', '1')");
+            $pdo->exec("INSERT INTO settings (name, value) VALUES ('user_registration', '0')");
         }
 
-        $link = url('/verify?token=' . $token);
-        Mailer::send(
-            $email,
-            $name,
-            'Verify Your Email',
-            "Hello {$name},\n\nPlease click the following link to verify your email and activate "
-            . "your admin account:\n{$link}\n\nThe link is valid for 24 hours.\n\nThank you!"
-        );
+        Verification::send($userId);
 
         return null;
     }

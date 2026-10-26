@@ -13,8 +13,14 @@ document.addEventListener('DOMContentLoaded', function () {
         var value = password.value;
         var messages = [];
 
-        if (value.length < 8) {
+        if (Array.from(value).length < 8) {
             messages.push('at least 8 characters');
+        }
+        if (new TextEncoder().encode(value).length > 72) {
+            messages.push('no more than 72 bytes');
+        }
+        if (value.includes('\0')) {
+            messages.push('no null characters');
         }
         if (!/[a-z]/.test(value)) {
             messages.push('one lowercase letter');
@@ -25,8 +31,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!/\d/.test(value)) {
             messages.push('one number');
         }
-        if (!/[@$!%*?&]/.test(value)) {
-            messages.push('one special character (@, $, !, %, *, ?, or &)');
+        if (!/[^a-zA-Z0-9]/.test(value)) {
+            messages.push('one non-alphanumeric character (spaces count)');
         }
 
         if (messages.length > 0) {

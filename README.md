@@ -1,9 +1,21 @@
 # PHP To-Do Application
 
 A self-hosted to-do list with groups, checklists, rich-text notes, a calendar
-view, and email reminders. Version **0.98**.
+view, and email reminders. Version **0.99**.
 
 📦 **[Download the latest release](https://github.com/zermus/PHP-ToDo/releases)** — grab the ready-to-install tarball from the Releases page.
+
+The optional `var/cache/purifier` cache must be owned by the PHP worker and writable
+only by that account (0700 directories). If it cannot be created or written,
+sanitization still works with caching disabled. Never make it world-writable.
+
+Existing verification, reset and email-change links keep working until their normal
+expiry after the schema 4 upgrade. Everyone signs in again once. Passwords now
+accept any non-alphanumeric symbol (including spaces), with a 72-byte maximum.
+
+New installations start with registration disabled. Existing registration settings
+are preserved. Unverified users can request a new link from the sign-in page;
+administrators can resend to the stored account address from Manage Users.
 
 ## Requirements
 
@@ -118,10 +130,10 @@ Set `mail.transport` in `config.php`:
    (or `$trusted_proxies` in a legacy config). Proxies must overwrite forwarded
    headers rather than relay client values.
 5. Run `install.php`, enter and confirm the setup key, then click **Upgrade
-   Database** to apply schema 3. The installer detects the existing installation
+   Database** to apply schema 4. The installer detects the existing installation
    and shows an **Upgrade** button instead of the install form; it never exposes
    admin creation on an existing database. Migrations run in order and the schema
-   version is recorded. The upgrade can optionally remove leftover files from
+   version is recorded. Only schema-1 (0.96) upgrades offer optional, initially unchecked cleanup of leftover files from
    older (pre-0.97) flat deployments.
 6. Everyone signs in again once: old remember-me cookies and tokens are dropped
    and old sessions are no longer used.

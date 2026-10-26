@@ -38,11 +38,14 @@ final class SettingsController
         // section's change go through silently).
         $newTimezone = input_string('timezone');
         $newEmail = input_string('email');
-        $currentPassword = (string) ($_POST['currentPassword'] ?? '');
-        $newPassword = (string) ($_POST['newPassword'] ?? '');
+        $currentPassword = input_password('currentPassword');
+        $newPassword = input_password('newPassword');
         $urgencyGreen = (int) ($_POST['urgency_green'] ?? 0);
         $urgencyCritical = (int) ($_POST['urgency_critical'] ?? 0);
 
+        if (!within_character_limit($newEmail, 190)) {
+            $errors[] = 'Email must be at most 190 characters.';
+        }
         if ($newTimezone !== '' && $newTimezone !== $user['timezone'] && !valid_timezone($newTimezone)) {
             $errors[] = 'Invalid timezone.';
         }
@@ -61,8 +64,10 @@ final class SettingsController
         if ($emailChanged || $newPassword !== '') {
             if ($currentPassword === '' || !password_verify($currentPassword, (string) $user['password'])) {
                 $errors[] = 'Current password is incorrect.';
+            } elseif (strlen($newPassword) > 72) {
+                $errors[] = 'Password must not exceed 72 bytes.';
             } elseif ($newPassword !== '' && !password_meets_policy($newPassword)) {
-                $errors[] = 'New password does not meet the requirements.';
+                $errors[] = 'Password requires 8 or more characters, at most 72 bytes, uppercase and lowercase letters, a number, and a non-alphanumeric character (spaces count).';
             }
         }
         if (!in_array($urgencyGreen, self::URGENCY_GREEN_CHOICES, true)
@@ -92,7 +97,7 @@ final class SettingsController
             $pdo->prepare('UPDATE users SET new_email = ?, new_email_token = ?,
                            new_email_token_expiry = DATE_ADD(NOW(), INTERVAL 24 HOUR)
                            WHERE id = ?')
-                ->execute([$newEmail, $token, $userId]);
+                ->execute([$newEmail, hash('sha256', $token), $userId]);
 
             $link = url('/settings/verify-new-email?token=' . $token);
             Mailer::send(
@@ -119,8 +124,11 @@ final class SettingsController
 
         // --- Password change ----------------------------------------------
         if ($newPassword !== '') {
+            $hash = password_hash($newPassword, PASSWORD_DEFAULT);
             $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')
-                ->execute([password_hash($newPassword, PASSWORD_DEFAULT), $userId]);
+                ->execute([$hash, $userId]);
+            $user['password'] = $hash;
+            Auth::login($user, false);
             // Sign out remembered sessions elsewhere.
             $pdo->prepare('DELETE FROM user_remember_tokens WHERE user_id = ?')->execute([$userId]);
             $successes[] = 'Password updated successfully.';
@@ -157,7 +165,7 @@ final class SettingsController
                  WHERE new_email_token = ? AND new_email IS NOT NULL
                    AND new_email_token_expiry > NOW()'
             );
-            $stmt->execute([$token]);
+            $stmt->execute([hash('sha256', $token)]);
             $row = $stmt->fetch();
 
             if ($row) {
