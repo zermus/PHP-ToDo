@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.98 - 2026-10-25
 
 - Isolate cookies, unify proxy trust, and authorize setup before database access.
 - Add schema v3 persistent authentication limits and retire old remember tokens.

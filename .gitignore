@@ -1,6 +1,7 @@
 config.php
 /vendor/
-/releases/
+/releases/*
+!/releases/release-notes-*.md
 mail.log
 *.log
 .DS_Store
