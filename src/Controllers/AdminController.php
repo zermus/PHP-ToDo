@@ -8,6 +8,7 @@ use App\Auth;
 use App\Csrf;
 use App\Database;
 use App\View;
+use App\Verification;
 use PDO;
 
 final class AdminController
@@ -22,7 +23,7 @@ final class AdminController
         $registration = $pdo->prepare("SELECT value FROM settings WHERE name = 'user_registration'");
         $registration->execute();
 
-        $users = $pdo->query('SELECT id, name, username, role, timezone FROM users ORDER BY name')->fetchAll();
+        $users = $pdo->query('SELECT id, name, username, role, timezone, email_verified FROM users ORDER BY name')->fetchAll();
 
         $memberships = $pdo->prepare(
             'SELECT g.id, g.name FROM user_groups g
@@ -58,6 +59,14 @@ final class AdminController
         $action = input_string('action');
 
         switch ($action) {
+            case 'resend_verification':
+                $targetId = (int) ($_POST['user_id'] ?? 0);
+                if ($targetId > 0 && ($isSuperAdmin || !$this->isSuperAdminUser($pdo, $targetId))) {
+                    flash(Verification::request($targetId)
+                        ? 'Verification email sent.' : 'Verification email could not be sent.', 'info');
+                }
+                break;
+
             case 'toggle_registration':
                 $newStatus = !empty($_POST['registration_status']) ? '1' : '0';
                 $pdo->prepare("UPDATE settings SET value = ? WHERE name = 'user_registration'")
@@ -67,7 +76,9 @@ final class AdminController
 
             case 'create_group':
                 $groupName = input_string('group_name');
-                if ($groupName !== '') {
+                if (!within_character_limit($groupName, 255)) {
+                    flash('Group name must not exceed 255 characters.', 'error');
+                } elseif ($groupName !== '') {
                     $pdo->prepare('INSERT INTO user_groups (name) VALUES (?)')->execute([$groupName]);
                     flash('Group created successfully.');
                 }

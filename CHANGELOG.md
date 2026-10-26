@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99 - 2026-10-25
+- Hash single-use account tokens in schema 4 while preserving previously sent links; add self-service and admin verification resend.
+- Bind sessions to password fingerprints; everyone signs in again once, and password changes sign out other sessions.
+- Rehash passwords on login when needed and accept non-alphanumeric symbols, including spaces, with a 72-byte limit.
+- Disable registration on fresh installs and validate input lengths before writes.
+- Use an application-private optional sanitizer cache and refresh dependencies.
+- Show optional legacy file cleanup only for upgrades from 0.96, unticked by default.
+
 ## 0.98 - 2026-10-25
 
 - Isolate cookies, unify proxy trust, and authorize setup before database access.

@@ -20,7 +20,7 @@
     RewriteEngine On
 
     # Deny direct access to internal directories.
-    RewriteRule ^(src|templates|migrations|vendor|bin|releases)(/|$) - [F,L]
+    RewriteRule ^(src|templates|migrations|vendor|bin|releases|var)(/|$) - [F,L]
 
     # Requests already targeting public/ pass through (public/.htaccess takes over).
     RewriteRule ^public/ - [L]

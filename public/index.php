@@ -26,6 +26,7 @@ $router->get('/register', [$auth, 'registerForm']);
 $router->post('/register', [$auth, 'register']);
 $router->get('/verify', [$auth, 'verifyEmail']);
 $router->get('/resend-verification', [$auth, 'resendVerification']);
+$router->post('/resend-verification', [$auth, 'requestVerification']);
 $router->get('/forgot-password', [$auth, 'forgotPasswordForm']);
 $router->post('/forgot-password', [$auth, 'forgotPassword']);
 $router->get('/reset-password', [$auth, 'resetPasswordForm']);

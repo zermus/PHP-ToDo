@@ -14,6 +14,7 @@
     <div class="forgot-password">
         <a href="<?= e(url('/forgot-password')) ?>" class="btn">Forgot Password?</a>
     </div>
+    <div><a href="<?= e(url('/resend-verification')) ?>">Send a new verification link</a></div>
     <div class="register">
         <a href="<?= e(url('/register')) ?>" class="btn">Register</a>
     </div>

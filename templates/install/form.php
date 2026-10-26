@@ -28,7 +28,7 @@
         <div>
             <label for="password">Admin Password:</label>
             <input type="password" id="password" name="adminPassword" required>
-            <div id="passwordMessage" class="password-requirements">Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.</div>
+            <div id="passwordMessage" class="password-requirements">Password must be at least 8 characters long, at most 72 bytes, and include an uppercase letter, a lowercase letter, a number, and a non-alphanumeric character (spaces count).</div>
         </div>
         <div>
             <label for="verifyPassword">Verify Password:</label>

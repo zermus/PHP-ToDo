@@ -402,6 +402,10 @@ final class TaskController
             return 'Please enter a task name.';
         }
 
+        if (strlen($summary) > 65535) {
+            return 'Task summary must not exceed 65,535 bytes.';
+        }
+
         $dueDate = input_string('dueDate');
         $dueTime = input_string('dueTime');
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDate) || !preg_match('/^\d{2}:\d{2}$/', $dueTime)) {
@@ -430,7 +434,15 @@ final class TaskController
             $groupId = null;
         }
 
-        $details = Sanitizer::html((string) ($_POST['taskDetails'] ?? ''));
+        $rawDetails = $_POST['taskDetails'] ?? '';
+        $rawDetails = is_string($rawDetails) ? $rawDetails : '';
+        if (strlen($rawDetails) > 65535) {
+            return 'Task details must not exceed 65,535 bytes.';
+        }
+        $details = Sanitizer::html($rawDetails);
+        if (strlen($details) > 65535) {
+            return 'Task details must not exceed 65,535 bytes after formatting.';
+        }
         // Quill's empty state.
         if (in_array(trim($details), ['', '<p></p>', '<p><br /></p>', '<p><br></p>'], true)) {
             $details = '';
@@ -453,6 +465,12 @@ final class TaskController
                 if ($content !== '') {
                     $newItems[] = $content;
                 }
+            }
+        }
+
+        foreach (array_merge($existingItems, $newItems) as $content) {
+            if (!within_character_limit($content, 255)) {
+                return 'Checklist items must not exceed 255 characters.';
             }
         }
 

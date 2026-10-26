@@ -16,7 +16,7 @@
             </select>
             <input type="password" id="password" name="password" placeholder="Password" required>
             <input type="password" id="verifyPassword" name="verifyPassword" placeholder="Verify Password" required>
-            <div id="passwordMessage" class="password-requirements">Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.</div>
+            <div id="passwordMessage" class="password-requirements">Password must be at least 8 characters long, at most 72 bytes, and include an uppercase letter, a lowercase letter, a number, and a non-alphanumeric character (spaces count).</div>
             <button type="submit">Register</button>
         </form>
     <?php else: ?>

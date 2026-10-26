@@ -23,16 +23,23 @@ final class Auth
     {
         session_regenerate_id(true);
         $_SESSION['user_id'] = (int) $user['id'];
+        $_SESSION['password_fingerprint'] = self::passwordFingerprint($user['password']);
+        self::$user = $user;
 
         if ($remember) {
             self::issueRememberToken((int) $user['id']);
         }
     }
 
+    public static function passwordFingerprint(string $hash): string
+    {
+        return hash('sha256', $hash);
+    }
+
     public static function logout(): void
     {
         $cookie = $_COOKIE[self::REMEMBER_COOKIE] ?? '';
-        if ($cookie !== '' && str_contains($cookie, ':')) {
+        if (is_string($cookie) && $cookie !== '' && str_contains($cookie, ':')) {
             [$selector] = explode(':', $cookie, 2);
             Database::pdo()
                 ->prepare('DELETE FROM user_remember_tokens WHERE selector = ?')
@@ -40,6 +47,7 @@ final class Auth
         }
         self::clearRememberCookie();
 
+        self::$user = null;
         $_SESSION = [];
         session_destroy();
     }
@@ -52,20 +60,23 @@ final class Auth
      */
     public static function user(): ?array
     {
-        if (self::$user !== null) {
-            return self::$user;
-        }
-
         $pdo = Database::pdo();
 
         if (isset($_SESSION['user_id'])) {
             $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
             $stmt->execute([(int) $_SESSION['user_id']]);
             $user = $stmt->fetch();
-            if ($user) {
+            $fingerprint = $_SESSION['password_fingerprint'] ?? null;
+            if ($user && is_string($fingerprint)
+                && hash_equals(self::passwordFingerprint($user['password']), $fingerprint)
+            ) {
                 return self::$user = $user;
             }
-            unset($_SESSION['user_id']);
+            self::$user = null;
+            unset($_SESSION['user_id'], $_SESSION['password_fingerprint']);
+            self::clearRememberCookie();
+
+            return null;
         }
 
         return self::$user = self::loginViaRememberCookie();
@@ -126,7 +137,7 @@ final class Auth
     private static function loginViaRememberCookie(): ?array
     {
         $cookie = $_COOKIE[self::REMEMBER_COOKIE] ?? '';
-        if ($cookie === '' || !str_contains($cookie, ':')) {
+        if (!is_string($cookie) || $cookie === '' || !str_contains($cookie, ':')) {
             return null;
         }
 
@@ -160,6 +171,7 @@ final class Auth
         $pdo->prepare('DELETE FROM user_remember_tokens WHERE id = ?')->execute([$row['token_id']]);
         session_regenerate_id(true);
         $_SESSION['user_id'] = (int) $row['id'];
+        $_SESSION['password_fingerprint'] = self::passwordFingerprint($row['password']);
         self::issueRememberToken((int) $row['id']);
 
         unset($row['token_id'], $row['token_hash'], $row['expires_at']);

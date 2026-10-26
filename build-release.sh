@@ -3,7 +3,7 @@
 # Run from the project root on a machine with composer + tar.
 set -euo pipefail
 
-VERSION="0.98"
+VERSION="0.99"
 STAGE="php-todo-${VERSION}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="${ROOT}/releases"
@@ -17,6 +17,8 @@ echo ">> Staging ${STAGE}/ ..."
 TMP="$(mktemp -d)"
 DEST="${TMP}/${STAGE}"
 mkdir -p "$DEST"
+mkdir -p "$DEST/var/cache/purifier"
+chmod 0700 "$DEST/var" "$DEST/var/cache" "$DEST/var/cache/purifier"
 
 # What ships in a release.
 cp -r public src templates migrations bin vendor "$DEST/"

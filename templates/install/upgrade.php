@@ -10,10 +10,12 @@
         <label for="setup_key">Confirm setup key:</label>
         <input type="password" id="setup_key" name="setup_key" required autocomplete="off">
         <input type="hidden" name="action" value="upgrade">
+        <?php if ($fromVersion === 1): ?>
         <div class="checkbox-row">
-            <input type="checkbox" id="cleanup_legacy" name="cleanup_legacy" value="1" checked>
+            <input type="checkbox" id="cleanup_legacy" name="cleanup_legacy" value="1">
             <label for="cleanup_legacy">Remove leftover 0.96 files (old top-level .php pages)</label>
         </div>
+        <?php endif; ?>
         <button type="submit">Upgrade Database</button>
     </form>
 </div>
